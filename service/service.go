@@ -4,25 +4,22 @@ import (
 	"encoding/json"
 	"fmt"
 	"log"
-	"net"
 	"time"
 
 	"errors"
 
 	"os"
 
-	pb "github.com/YAWAL/GetMeConfAPI/api"
+	pb "github.com/YAWAL/GetMeConf/api"
+	micro "github.com/micro/go-micro"
 
 	"strconv"
 
-	"os/signal"
-	"syscall"
-
 	"github.com/YAWAL/GetMeConf/entitie"
 	"github.com/YAWAL/GetMeConf/repository"
+	"github.com/micro/go-micro/broker"
 	"github.com/patrickmn/go-cache"
 	"golang.org/x/net/context"
-	"google.golang.org/grpc"
 )
 
 var (
@@ -42,14 +39,16 @@ type configServer struct {
 	mongoDBConfigRepo repository.MongoDBConfigRepo
 	tempConfigRepo    repository.TempConfigRepo
 	tsConfigRepo      repository.TsConfigRepo
+	PubSub            broker.Broker
 }
 
 //GetConfigByName returns one config in GetConfigResponce message
-func (s *configServer) GetConfigByName(ctx context.Context, nameRequest *pb.GetConfigByNameRequest) (*pb.GetConfigResponce, error) {
+func (s *configServer) GetConfigByName(ctx context.Context, nameRequest *pb.GetConfigByNameRequest, configResponce *pb.GetConfigResponce) error {
 
-	configResponse, found := s.configCache.Get(nameRequest.ConfigName)
+	configFromCache, found := s.configCache.Get(nameRequest.ConfigName)
 	if found {
-		return configResponse.(*pb.GetConfigResponce), nil
+		configResponce = configFromCache.(*pb.GetConfigResponce)
+		return nil
 	}
 	var err error
 	var res entitie.ConfigInterface
@@ -58,33 +57,33 @@ func (s *configServer) GetConfigByName(ctx context.Context, nameRequest *pb.GetC
 	case mongodb:
 		res, err = s.mongoDBConfigRepo.Find(nameRequest.ConfigName)
 		if err != nil {
-			return nil, err
+			return err
 		}
 	case tempconfig:
 		res, err = s.tempConfigRepo.Find(nameRequest.ConfigName)
 		if err != nil {
-			return nil, err
+			return err
 		}
 	case tsconfig:
 		res, err = s.tsConfigRepo.Find(nameRequest.ConfigName)
 		if err != nil {
-			return nil, err
+			return err
 		}
 	default:
 		log.Print("unexpected type")
-		return nil, errors.New("unexpected type")
+		return errors.New("unexpected type")
 	}
 	byteRes, err := json.Marshal(res)
 	if err != nil {
-		return nil, err
+		return err
 	}
-	configResponse = &pb.GetConfigResponce{Config: byteRes}
-	s.configCache.Set(nameRequest.ConfigName, configResponse, cache.DefaultExpiration)
-	return configResponse.(*pb.GetConfigResponce), nil
+	configResponce = &pb.GetConfigResponce{Config: byteRes}
+	s.configCache.Set(nameRequest.ConfigName, configResponce, cache.DefaultExpiration)
+	return nil
 }
 
 //GetConfigByName streams configs as GetConfigResponce messages
-func (s *configServer) GetConfigsByType(typeRequest *pb.GetConfigsByTypeRequest, stream pb.ConfigService_GetConfigsByTypeServer) error {
+func (s *configServer) GetConfigsByType(ctx context.Context, typeRequest *pb.GetConfigsByTypeRequest, stream pb.ConfigService_GetConfigsByTypeStream) error {
 	switch typeRequest.ConfigType {
 	case mongodb:
 		res, err := s.mongoDBConfigRepo.FindAll()
@@ -136,87 +135,93 @@ func (s *configServer) GetConfigsByType(typeRequest *pb.GetConfigsByTypeRequest,
 }
 
 //CreateConfig calls the function from database package to add a new config record to the database, returns response structure containing a status message
-func (s *configServer) CreateConfig(ctx context.Context, config *pb.Config) (*pb.Responce, error) {
+func (s *configServer) CreateConfig(ctx context.Context, config *pb.Config, responce *pb.Responce) error {
 	switch config.ConfigType {
 	case mongodb:
 		configStr := entitie.Mongodb{}
 		err := json.Unmarshal(config.Config, &configStr)
 		if err != nil {
 			log.Printf("unmarshal config err: %v", err)
-			return nil, err
+			return err
 		}
-		response, err := s.mongoDBConfigRepo.Save(&configStr)
+		responceStatus, err := s.mongoDBConfigRepo.Save(&configStr)
 		if err != nil {
-			return nil, err
+			return err
 		}
 		s.configCache.Flush()
-		return &pb.Responce{Status: response}, nil
+		responce = &pb.Responce{Status: responceStatus}
+		return nil
 
 	case tempconfig:
 		configStr := entitie.Tempconfig{}
 		err := json.Unmarshal(config.Config, &configStr)
 		if err != nil {
 			log.Printf("unmarshal config err: %v", err)
-			return nil, err
+			return err
 		}
-		response, err := s.tempConfigRepo.Save(&configStr)
+		responceStatus, err := s.tempConfigRepo.Save(&configStr)
 		if err != nil {
-			return nil, err
+			return err
 		}
 		s.configCache.Flush()
-		return &pb.Responce{Status: response}, nil
+		responce = &pb.Responce{Status: responceStatus}
+		return nil
 
 	case tsconfig:
 		configStr := entitie.Tsconfig{}
 		err := json.Unmarshal(config.Config, &configStr)
 		if err != nil {
 			log.Printf("unmarshal config err: %v", err)
-			return nil, err
+			return err
 		}
-		response, err := s.tsConfigRepo.Save(&configStr)
+		responceStatus, err := s.tsConfigRepo.Save(&configStr)
 		if err != nil {
-			return nil, err
+			return err
 		}
 		s.configCache.Flush()
-		return &pb.Responce{Status: response}, nil
+		responce = &pb.Responce{Status: responceStatus}
+		return nil
 	default:
 		log.Print("unexpected type")
-		return nil, errors.New("unexpected type")
+		return errors.New("unexpected type")
 	}
 }
 
 //DeleteConfig removes config records from the database. If successful, returns the amount of deleted records in a status message of the response structure
-func (s *configServer) DeleteConfig(ctx context.Context, delConfigRequest *pb.DeleteConfigRequest) (*pb.Responce, error) {
+func (s *configServer) DeleteConfig(ctx context.Context, delConfigRequest *pb.DeleteConfigRequest, responce *pb.Responce) error {
 	switch delConfigRequest.ConfigType {
 	case mongodb:
-		response, err := s.mongoDBConfigRepo.Delete(delConfigRequest.ConfigName)
+		responseStatus, err := s.mongoDBConfigRepo.Delete(delConfigRequest.ConfigName)
 		if err != nil {
-			return nil, err
+			return err
 		}
 		s.configCache.Flush()
-		return &pb.Responce{Status: response}, nil
+		responce = &pb.Responce{Status: responseStatus}
+		return nil
 	case tempconfig:
-		response, err := s.tempConfigRepo.Delete(delConfigRequest.ConfigName)
+		responseStatus, err := s.tempConfigRepo.Delete(delConfigRequest.ConfigName)
 		if err != nil {
-			return nil, err
+			return err
 		}
 		s.configCache.Flush()
-		return &pb.Responce{Status: response}, nil
+		responce = &pb.Responce{Status: responseStatus}
+		return nil
 	case tsconfig:
-		response, err := s.tsConfigRepo.Delete(delConfigRequest.ConfigName)
+		responseStatus, err := s.tsConfigRepo.Delete(delConfigRequest.ConfigName)
 		if err != nil {
-			return nil, err
+			return err
 		}
 		s.configCache.Flush()
-		return &pb.Responce{Status: response}, nil
+		responce = &pb.Responce{Status: responseStatus}
+		return nil
 	default:
 		log.Print("unexpected type")
-		return nil, errors.New("unexpected type")
+		return errors.New("unexpected type")
 	}
 }
 
 //UpdateConfig
-func (s *configServer) UpdateConfig(ctx context.Context, config *pb.Config) (*pb.Responce, error) {
+func (s *configServer) UpdateConfig(ctx context.Context, config *pb.Config, response *pb.Responce) error {
 	var status string
 	switch config.ConfigType {
 	case mongodb:
@@ -224,49 +229,50 @@ func (s *configServer) UpdateConfig(ctx context.Context, config *pb.Config) (*pb
 		err := json.Unmarshal(config.Config, &configStr)
 		if err != nil {
 			log.Printf("unmarshal config err: %v", err)
-			return nil, err
+			return err
 		}
 		status, err = s.mongoDBConfigRepo.Update(&configStr)
 		if err != nil {
-			return nil, err
+			return err
 		}
 	case tempconfig:
 		configStr := entitie.Tempconfig{}
 		err := json.Unmarshal(config.Config, &configStr)
 		if err != nil {
 			log.Printf("unmarshal config err: %v", err)
-			return nil, err
+			return err
 		}
 		status, err = s.tempConfigRepo.Update(&configStr)
 		if err != nil {
-			return nil, err
+			return err
 		}
 	case tsconfig:
 		configStr := entitie.Tsconfig{}
 		err := json.Unmarshal(config.Config, &configStr)
 		if err != nil {
 			log.Printf("unmarshal config err: %v", err)
-			return nil, err
+			return err
 		}
 		status, err = s.tsConfigRepo.Update(&configStr)
 		if err != nil {
-			return nil, err
+			return err
 		}
 	default:
 		log.Print("unexpected type")
-		return nil, errors.New("unexpected type")
+		return errors.New("unexpected type")
 	}
 	s.configCache.Flush()
-	return &pb.Responce{Status: status}, nil
+	response = &pb.Responce{Status: status}
+	return nil
 }
 
 func main() {
 
-	port := os.Getenv("SERVICE_PORT")
-	if port == "" {
-		log.Println("error during reading env. variable, default value is used")
-		port = defaultPort
-	}
+	//port := os.Getenv("SERVICE_PORT")
+	//if port == "" {
+	//	log.Println("error during reading env. variable, default value is used")
+	//	port = defaultPort
+	//}
 	cacheExpirationTime, err := strconv.Atoi(os.Getenv("CACHE_EXPIRATION_TIME"))
 	if err != nil {
 		log.Printf("error during reading env. variable: %v, default value is used", err)
@@ -282,31 +288,27 @@ func main() {
 	if err != nil {
 		log.Fatalf("failed to init postgres db: %v", err)
 	}
+
 	mongoDBRepo := repository.MongoDBConfigRepoImpl{DB: dbConn}
 	tsConfigRepo := repository.TsConfigRepoImpl{DB: dbConn}
 	tempConfigRepo := repository.TempConfigRepoImpl{DB: dbConn}
 
-	lis, err := net.Listen("tcp", fmt.Sprintf(":%s", port))
-	if err != nil {
-		log.Fatalf("failed to listen: %v", err)
-	}
+	//log.Printf("server started at :%s", port)
 
-	log.Printf("server started at :%s", port)
+	srv := micro.NewService(
+		micro.Name("api"),
+		micro.Version("latest"),
+	)
 
-	grpcServer := grpc.NewServer()
+	srv.Init()
+
+	pubsub := micro.NewPublisher()
 
 	configCache := cache.New(time.Duration(cacheExpirationTime)*time.Minute, time.Duration(cacheCleanupInterval)*time.Minute)
 
-	pb.RegisterConfigServiceServer(grpcServer, &configServer{configCache: configCache, mongoDBConfigRepo: &mongoDBRepo, tsConfigRepo: &tsConfigRepo, tempConfigRepo: &tempConfigRepo})
+	pb.RegisterConfigServiceHandler(srv.Server(), &configServer{configCache: configCache, mongoDBConfigRepo: &mongoDBRepo, tsConfigRepo: &tsConfigRepo, tempConfigRepo: &tempConfigRepo, PubSub: pubsub})
 
-	go func() {
-		log.Fatal(grpcServer.Serve(lis))
-	}()
-
-	signalChan := make(chan os.Signal, 1)
-	signal.Notify(signalChan, syscall.SIGINT, syscall.SIGTERM)
-	<-signalChan
-
-	log.Println("shotdown signal received, exiting")
-	grpcServer.GracefulStop()
+	if err := srv.Run(); err != nil {
+		fmt.Println(err)
+	}
 }

@@ -30,4 +30,4 @@ tests:
 	go test ./repository
 
 docker-build:
-	docker build -t configservice . && docker run --net=${DOCKER_NET_DRIVER} -p ${SERVICE_PORT}:${SERVICE_PORT} --env-file .env configservice
+	docker build -t configservice . && docker run --net=${DOCKER_NET_DRIVER} -p ${SERVICE_PORT}:${SERVICE_PORT} -e MICRO_SERVER_ADDRESS=:${SERVICE_PORT} -e MICRO_REGISTRY=mdns --env-file .env configservice
