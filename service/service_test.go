@@ -7,7 +7,7 @@ import (
 	"testing"
 	"time"
 
-	pb "github.com/YAWAL/GetMeConfAPI/api"
+	pb "github.com/YAWAL/GetMeConf/api"
 
 	"errors"
 
@@ -160,8 +160,8 @@ func TestGetConfigByName(t *testing.T) {
 	mock.mongoDBConfigRepo = &mockMongoDBConfigRepo{}
 	mock.tsConfigRepo = &mockTsConfigRepo{}
 	mock.tempConfigRepo = &mockTempConfigRepo{}
-
-	res, err := mock.GetConfigByName(context.Background(), &pb.GetConfigByNameRequest{ConfigType: "mongodb", ConfigName: "testNameMongo"})
+	res := &pb.GetConfigResponce{}
+	err := mock.GetConfigByName(context.Background(), &pb.GetConfigByNameRequest{ConfigType: "mongodb", ConfigName: "testNameMongo"}, res)
 	if err != nil {
 		t.Error("error during unit testing: ", err)
 	}
@@ -172,7 +172,7 @@ func TestGetConfigByName(t *testing.T) {
 	}
 	assert.Equal(t, expectedConfig, res.Config)
 
-	res, err = mock.GetConfigByName(context.Background(), &pb.GetConfigByNameRequest{ConfigType: "tsconfig", ConfigName: "testNameTs"})
+	err = mock.GetConfigByName(context.Background(), &pb.GetConfigByNameRequest{ConfigType: "tsconfig", ConfigName: "testNameTs"}, res)
 	if err != nil {
 		t.Error("error during unit testing: ", err)
 	}
@@ -182,7 +182,7 @@ func TestGetConfigByName(t *testing.T) {
 	}
 	assert.Equal(t, expectedConfig, res.Config)
 
-	res, err = mock.GetConfigByName(context.Background(), &pb.GetConfigByNameRequest{ConfigType: "tempconfig", ConfigName: "testNameTemp"})
+	err = mock.GetConfigByName(context.Background(), &pb.GetConfigByNameRequest{ConfigType: "tempconfig", ConfigName: "testNameTemp"}, res)
 	if err != nil {
 		t.Error("error during unit testing: ", err)
 	}
@@ -196,21 +196,21 @@ func TestGetConfigByName(t *testing.T) {
 
 	mock.mongoDBConfigRepo = &mockErrorMongoDBConfigRepo{}
 	expectedError := errors.New("error from database querying")
-	_, err = mock.GetConfigByName(context.Background(), &pb.GetConfigByNameRequest{ConfigType: "mongodb", ConfigName: "testNameMongo"})
+	err = mock.GetConfigByName(context.Background(), &pb.GetConfigByNameRequest{ConfigType: "mongodb", ConfigName: "testNameMongo"}, res)
 	if assert.Error(t, err) {
 		assert.Equal(t, expectedError, err)
 	}
 	mock.tsConfigRepo = &mockErrorTsConfigRepo{}
-	_, err = mock.GetConfigByName(context.Background(), &pb.GetConfigByNameRequest{ConfigType: "tsconfig", ConfigName: "testNameTs"})
+	err = mock.GetConfigByName(context.Background(), &pb.GetConfigByNameRequest{ConfigType: "tsconfig", ConfigName: "testNameTs"}, res)
 	if assert.Error(t, err) {
 		assert.Equal(t, expectedError, err)
 	}
 	mock.tempConfigRepo = &mockErrorTempConfigRepo{}
-	_, err = mock.GetConfigByName(context.Background(), &pb.GetConfigByNameRequest{ConfigType: "tempconfig", ConfigName: "testNameTemp"})
+	err = mock.GetConfigByName(context.Background(), &pb.GetConfigByNameRequest{ConfigType: "tempconfig", ConfigName: "testNameTemp"}, res)
 	if assert.Error(t, err) {
 		assert.Equal(t, expectedError, err)
 	}
-	_, err = mock.GetConfigByName(context.Background(), &pb.GetConfigByNameRequest{ConfigType: "unexpectedConfigType", ConfigName: "testNameTemp"})
+	err = mock.GetConfigByName(context.Background(), &pb.GetConfigByNameRequest{ConfigType: "unexpectedConfigType", ConfigName: "testNameTemp"}, res)
 	if assert.Error(t, err) {
 		assert.Equal(t, errors.New("unexpected type"), err)
 	}
@@ -229,7 +229,8 @@ func TestGetConfigByName_FromCache(t *testing.T) {
 	}
 	configResponse := &pb.GetConfigResponce{Config: byteRes}
 	mock.configCache.Set(testName, configResponse, 5*time.Minute)
-	res, err := mock.GetConfigByName(context.Background(), &pb.GetConfigByNameRequest{ConfigType: "mongodb", ConfigName: "testName"})
+	res := &pb.GetConfigResponce{}
+	err = mock.GetConfigByName(context.Background(), &pb.GetConfigByNameRequest{ConfigType: "mongodb", ConfigName: "testName"}, res)
 	if err != nil {
 		t.Error("error during unit testing: ", err)
 	}
@@ -242,55 +243,6 @@ func TestGetConfigByName_FromCache(t *testing.T) {
 
 }
 
-func TestGetConfigsByType(t *testing.T) {
-
-	mock := &mockConfigServer{}
-	mock.mongoDBConfigRepo = &mockMongoDBConfigRepo{}
-	err := mock.GetConfigsByType(&pb.GetConfigsByTypeRequest{ConfigType: "mongodb"}, mock)
-	assert.Equal(t, 1, len(mock.Results), "expected to contain 1 item")
-	mock.tsConfigRepo = &mockTsConfigRepo{}
-	err = mock.GetConfigsByType(&pb.GetConfigsByTypeRequest{ConfigType: "tsconfig"}, mock)
-	assert.Equal(t, 2, len(mock.Results), "expected to contain 1 item")
-	mock.tempConfigRepo = &mockTempConfigRepo{}
-	err = mock.GetConfigsByType(&pb.GetConfigsByTypeRequest{ConfigType: "tempconfig"}, mock)
-	assert.Equal(t, 3, len(mock.Results), "expected to contain 1 item")
-	if err != nil {
-		t.Error("error during unit testing of GetConfigsByType function: ", err)
-	}
-	err = mock.GetConfigsByType(&pb.GetConfigsByTypeRequest{ConfigType: "unexpectedConfigType"}, mock)
-	if assert.Error(t, err) {
-		assert.Equal(t, errors.New("unexpected type"), err)
-	}
-
-	expectedError := errors.New("error from database querying")
-	err = nil
-	mock.mongoDBConfigRepo = &mockErrorMongoDBConfigRepo{}
-	err = mock.GetConfigsByType(&pb.GetConfigsByTypeRequest{ConfigType: "mongodb"}, mock)
-	if assert.Error(t, err) {
-		assert.Equal(t, expectedError, err)
-	}
-
-	err = nil
-	mock.tsConfigRepo = &mockErrorTsConfigRepo{}
-	err = mock.GetConfigsByType(&pb.GetConfigsByTypeRequest{ConfigType: "tsconfig"}, mock)
-	if assert.Error(t, err) {
-		assert.Equal(t, errors.New("error from database querying"), err)
-	}
-	err = nil
-	mock.tempConfigRepo = &mockErrorTempConfigRepo{}
-	err = mock.GetConfigsByType(&pb.GetConfigsByTypeRequest{ConfigType: "tempconfig"}, mock)
-	if assert.Error(t, err) {
-		assert.Equal(t, expectedError, err)
-	}
-	err = nil
-	mock.tempConfigRepo = &mockErrorTempConfigRepo{}
-	err = mock.GetConfigsByType(&pb.GetConfigsByTypeRequest{ConfigType: "unexpectedType"}, mock)
-	if assert.Error(t, err) {
-		assert.Equal(t, errors.New("unexpected type"), err)
-	}
-
-}
-
 type mockConfigServer struct {
 	configServer
 	grpc.ServerStream
@@ -300,6 +252,60 @@ type mockConfigServer struct {
 func (mcs *mockConfigServer) Send(response *pb.GetConfigResponce) error {
 	mcs.Results = append(mcs.Results, response)
 	return nil
+}
+
+func (mcs *mockConfigServer) Close() error {
+	return nil
+}
+
+func TestGetConfigsByType(t *testing.T) {
+
+	mock := &mockConfigServer{}
+	mock.mongoDBConfigRepo = &mockMongoDBConfigRepo{}
+
+	err := mock.GetConfigsByType(context.Background(), &pb.GetConfigsByTypeRequest{ConfigType: "mongodb"}, mock)
+	assert.Equal(t, 1, len(mock.Results), "expected to contain 1 item")
+	mock.tsConfigRepo = &mockTsConfigRepo{}
+	err = mock.GetConfigsByType(context.Background(), &pb.GetConfigsByTypeRequest{ConfigType: "tsconfig"}, mock)
+	assert.Equal(t, 2, len(mock.Results), "expected to contain 1 item")
+	mock.tempConfigRepo = &mockTempConfigRepo{}
+	err = mock.GetConfigsByType(context.Background(), &pb.GetConfigsByTypeRequest{ConfigType: "tempconfig"}, mock)
+	assert.Equal(t, 3, len(mock.Results), "expected to contain 1 item")
+	if err != nil {
+		t.Error("error during unit testing of GetConfigsByType function: ", err)
+	}
+	err = mock.GetConfigsByType(context.Background(), &pb.GetConfigsByTypeRequest{ConfigType: "unexpectedConfigType"}, mock)
+	if assert.Error(t, err) {
+		assert.Equal(t, errors.New("unexpected type"), err)
+	}
+
+	expectedError := errors.New("error from database querying")
+	err = nil
+	mock.mongoDBConfigRepo = &mockErrorMongoDBConfigRepo{}
+	err = mock.GetConfigsByType(context.Background(), &pb.GetConfigsByTypeRequest{ConfigType: "mongodb"}, mock)
+	if assert.Error(t, err) {
+		assert.Equal(t, expectedError, err)
+	}
+
+	err = nil
+	mock.tsConfigRepo = &mockErrorTsConfigRepo{}
+	err = mock.GetConfigsByType(context.Background(), &pb.GetConfigsByTypeRequest{ConfigType: "tsconfig"}, mock)
+	if assert.Error(t, err) {
+		assert.Equal(t, errors.New("error from database querying"), err)
+	}
+	err = nil
+	mock.tempConfigRepo = &mockErrorTempConfigRepo{}
+	err = mock.GetConfigsByType(context.Background(), &pb.GetConfigsByTypeRequest{ConfigType: "tempconfig"}, mock)
+	if assert.Error(t, err) {
+		assert.Equal(t, expectedError, err)
+	}
+	err = nil
+	mock.tempConfigRepo = &mockErrorTempConfigRepo{}
+	err = mock.GetConfigsByType(context.Background(), &pb.GetConfigsByTypeRequest{ConfigType: "unexpectedType"}, mock)
+	if assert.Error(t, err) {
+		assert.Equal(t, errors.New("unexpected type"), err)
+	}
+
 }
 
 func TestCreateConfig(t *testing.T) {
@@ -316,8 +322,8 @@ func TestCreateConfig(t *testing.T) {
 	if err != nil {
 		t.Error("error during unit testing: ", err)
 	}
-
-	res, err := mock.CreateConfig(context.Background(), &pb.Config{ConfigType: "mongodb", Config: byteRes})
+	res := &pb.Responce{}
+	err = mock.CreateConfig(context.Background(), &pb.Config{ConfigType: "mongodb", Config: byteRes}, res)
 	if err != nil {
 		t.Error("error during unit testing: ", err)
 	}
@@ -330,7 +336,7 @@ func TestCreateConfig(t *testing.T) {
 		t.Error("error during unit testing: ", err)
 	}
 
-	res, err = mock.CreateConfig(context.Background(), &pb.Config{ConfigType: "tsconfig", Config: byteRes})
+	err = mock.CreateConfig(context.Background(), &pb.Config{ConfigType: "tsconfig", Config: byteRes}, res)
 	if err != nil {
 		t.Error("error during unit testing: ", err)
 	}
@@ -342,7 +348,7 @@ func TestCreateConfig(t *testing.T) {
 		t.Error("error during unit testing: ", err)
 	}
 
-	res, err = mock.CreateConfig(context.Background(), &pb.Config{ConfigType: "tempconfig", Config: byteRes})
+	err = mock.CreateConfig(context.Background(), &pb.Config{ConfigType: "tempconfig", Config: byteRes}, res)
 	if err != nil {
 		t.Error("error during unit testing: ", err)
 	}
@@ -353,22 +359,23 @@ func TestCreateConfig(t *testing.T) {
 	mock.tempConfigRepo = &mockErrorTempConfigRepo{}
 	expectedError := errors.New("error from database querying")
 
-	_, resultingErr := mock.CreateConfig(context.Background(), &pb.Config{ConfigType: "mongodb", Config: byteRes})
+	res = &pb.Responce{}
+	resultingErr := mock.CreateConfig(context.Background(), &pb.Config{ConfigType: "mongodb", Config: byteRes}, res)
 	if assert.Error(t, resultingErr) {
 		assert.Equal(t, expectedError, resultingErr)
 	}
 	resultingErr = nil
-	_, resultingErr = mock.CreateConfig(context.Background(), &pb.Config{ConfigType: "tsconfig", Config: byteRes})
+	resultingErr = mock.CreateConfig(context.Background(), &pb.Config{ConfigType: "tsconfig", Config: byteRes}, res)
 	if assert.Error(t, resultingErr) {
 		assert.Equal(t, expectedError, resultingErr)
 	}
 	resultingErr = nil
-	_, resultingErr = mock.CreateConfig(context.Background(), &pb.Config{ConfigType: "tempconfig", Config: byteRes})
+	resultingErr = mock.CreateConfig(context.Background(), &pb.Config{ConfigType: "tempconfig", Config: byteRes}, res)
 	if assert.Error(t, resultingErr) {
 		assert.Equal(t, expectedError, resultingErr)
 	}
 	resultingErr = nil
-	_, resultingErr = mock.CreateConfig(context.Background(), &pb.Config{ConfigType: "unexpectedType", Config: byteRes})
+	resultingErr = mock.CreateConfig(context.Background(), &pb.Config{ConfigType: "unexpectedType", Config: byteRes}, res)
 	if assert.Error(t, resultingErr) {
 		assert.Equal(t, errors.New("unexpected type"), resultingErr)
 	}
@@ -382,22 +389,22 @@ func TestDeleteConfig(t *testing.T) {
 	mock.mongoDBConfigRepo = &mockMongoDBConfigRepo{}
 	mock.tsConfigRepo = &mockTsConfigRepo{}
 	mock.tempConfigRepo = &mockTempConfigRepo{}
-
-	res, err := mock.DeleteConfig(context.Background(), &pb.DeleteConfigRequest{ConfigType: "mongodb", ConfigName: "testName"})
+	res := &pb.Responce{}
+	err := mock.DeleteConfig(context.Background(), &pb.DeleteConfigRequest{ConfigType: "mongodb", ConfigName: "testName"}, res)
 	if err != nil {
 		t.Error("error during unit testing: ", err)
 	}
 	expectedResponse := &pb.Responce{Status: "OK"}
 	assert.Equal(t, expectedResponse, res)
 
-	res, err = mock.DeleteConfig(context.Background(), &pb.DeleteConfigRequest{ConfigType: "tsconfig", ConfigName: "testName"})
+	err = mock.DeleteConfig(context.Background(), &pb.DeleteConfigRequest{ConfigType: "tsconfig", ConfigName: "testName"}, res)
 	if err != nil {
 		t.Error("error during unit testing: ", err)
 	}
 
 	assert.Equal(t, expectedResponse, res)
 
-	res, err = mock.DeleteConfig(context.Background(), &pb.DeleteConfigRequest{ConfigType: "tempconfig", ConfigName: "testName"})
+	err = mock.DeleteConfig(context.Background(), &pb.DeleteConfigRequest{ConfigType: "tempconfig", ConfigName: "testName"}, res)
 	if err != nil {
 		t.Error("error during unit testing: ", err)
 	}
@@ -408,22 +415,22 @@ func TestDeleteConfig(t *testing.T) {
 	mock.tsConfigRepo = &mockErrorTsConfigRepo{}
 	mock.tempConfigRepo = &mockErrorTempConfigRepo{}
 	expectedError := errors.New("error from database querying")
-	_, resultingErr := mock.DeleteConfig(context.Background(), &pb.DeleteConfigRequest{ConfigType: "mongodb", ConfigName: "errorTestName"})
+	resultingErr := mock.DeleteConfig(context.Background(), &pb.DeleteConfigRequest{ConfigType: "mongodb", ConfigName: "errorTestName"}, res)
 	if assert.Error(t, resultingErr) {
 		assert.Equal(t, expectedError, resultingErr)
 	}
 	resultingErr = nil
-	_, resultingErr = mock.DeleteConfig(context.Background(), &pb.DeleteConfigRequest{ConfigType: "tsconfig", ConfigName: "errorTestName"})
+	resultingErr = mock.DeleteConfig(context.Background(), &pb.DeleteConfigRequest{ConfigType: "tsconfig", ConfigName: "errorTestName"}, res)
 	if assert.Error(t, resultingErr) {
 		assert.Equal(t, expectedError, resultingErr)
 	}
 	resultingErr = nil
-	_, resultingErr = mock.DeleteConfig(context.Background(), &pb.DeleteConfigRequest{ConfigType: "tempconfig", ConfigName: "errorTestName"})
+	resultingErr = mock.DeleteConfig(context.Background(), &pb.DeleteConfigRequest{ConfigType: "tempconfig", ConfigName: "errorTestName"}, res)
 	if assert.Error(t, resultingErr) {
 		assert.Equal(t, expectedError, resultingErr)
 	}
 	resultingErr = nil
-	_, resultingErr = mock.DeleteConfig(context.Background(), &pb.DeleteConfigRequest{ConfigType: "unexpectedType", ConfigName: "errorTestName"})
+	resultingErr = mock.DeleteConfig(context.Background(), &pb.DeleteConfigRequest{ConfigType: "unexpectedType", ConfigName: "errorTestName"}, res)
 	if assert.Error(t, resultingErr) {
 		assert.Equal(t, errors.New("unexpected type"), resultingErr)
 	}
@@ -453,14 +460,14 @@ func TestUpdateConfig(t *testing.T) {
 	if err != nil {
 		t.Error("error during unit testing: ", err)
 	}
-
-	resp, err := mock.UpdateConfig(context.Background(), &pb.Config{ConfigType: "mongodb", Config: byteResMongo})
-	assert.Equal(t, &pb.Responce{Status: "OK"}, resp)
-	resp, err = mock.UpdateConfig(context.Background(), &pb.Config{ConfigType: "tsconfig", Config: byteResTs})
-	assert.Equal(t, &pb.Responce{Status: "OK"}, resp)
-	resp, err = mock.UpdateConfig(context.Background(), &pb.Config{ConfigType: "tempconfig", Config: byteResTemp})
-	assert.Equal(t, &pb.Responce{Status: "OK"}, resp)
-	_, err = mock.UpdateConfig(context.Background(), &pb.Config{ConfigType: "unexpectedConfigType"})
+	res := &pb.Responce{}
+	err = mock.UpdateConfig(context.Background(), &pb.Config{ConfigType: "mongodb", Config: byteResMongo}, res)
+	assert.Equal(t, &pb.Responce{Status: "OK"}, res)
+	err = mock.UpdateConfig(context.Background(), &pb.Config{ConfigType: "tsconfig", Config: byteResTs}, res)
+	assert.Equal(t, &pb.Responce{Status: "OK"}, res)
+	err = mock.UpdateConfig(context.Background(), &pb.Config{ConfigType: "tempconfig", Config: byteResTemp}, res)
+	assert.Equal(t, &pb.Responce{Status: "OK"}, res)
+	err = mock.UpdateConfig(context.Background(), &pb.Config{ConfigType: "unexpectedConfigType"}, res)
 	if assert.Error(t, err) {
 		assert.Equal(t, errors.New("unexpected type"), err)
 	}
@@ -468,21 +475,21 @@ func TestUpdateConfig(t *testing.T) {
 	expectedError := errors.New("error from database querying")
 	mock.mongoDBConfigRepo = &mockErrorMongoDBConfigRepo{}
 	err = nil
-	_, err = mock.UpdateConfig(context.Background(), &pb.Config{ConfigType: "mongodb", Config: byteResMongo})
+	err = mock.UpdateConfig(context.Background(), &pb.Config{ConfigType: "mongodb", Config: byteResMongo}, res)
 	if assert.Error(t, err) {
 		assert.Equal(t, expectedError, err)
 	}
 
 	err = nil
 	mock.tsConfigRepo = &mockErrorTsConfigRepo{}
-	_, err = mock.UpdateConfig(context.Background(), &pb.Config{ConfigType: "tsconfig", Config: byteResTs})
+	err = mock.UpdateConfig(context.Background(), &pb.Config{ConfigType: "tsconfig", Config: byteResTs}, res)
 	if assert.Error(t, err) {
 		assert.Equal(t, expectedError, err)
 	}
 
 	err = nil
 	mock.tempConfigRepo = &mockErrorTempConfigRepo{}
-	_, err = mock.UpdateConfig(context.Background(), &pb.Config{ConfigType: "tempconfig", Config: byteResTemp})
+	err = mock.UpdateConfig(context.Background(), &pb.Config{ConfigType: "tempconfig", Config: byteResTemp}, res)
 	if assert.Error(t, err) {
 		assert.Equal(t, expectedError, err)
 	}

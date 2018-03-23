@@ -2,12 +2,6 @@
 
 
 [[projects]]
-  branch = "master"
-  name = "github.com/YAWAL/GetMeConfAPI"
-  packages = ["api"]
-  revision = "cd940b4ff6b465d0e5f0e2a972dba98ce65c91f7"
-
-[[projects]]
   name = "github.com/davecgh/go-spew"
   packages = ["spew"]
   revision = "346938d642f2ec3594ed81d874461961cd0faa76"
@@ -300,6 +294,6 @@
 [solve-meta]
   analyzer-name = "dep"
   analyzer-version = 1
-  inputs-digest = "04fa43117f65572592e0a4fb878df9d2333958095fe4a1e7250f8e1faae4d58d"
+  inputs-digest = "51a3b5a621820bbd5cb2eb9ebea90f4fb5ef4beb1380bdc4536115634ace39cd"
   solver-name = "gps-cdcl"
   solver-version = 1

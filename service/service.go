@@ -47,7 +47,7 @@ func (s *configServer) GetConfigByName(ctx context.Context, nameRequest *pb.GetC
 
 	configFromCache, found := s.configCache.Get(nameRequest.ConfigName)
 	if found {
-		configResponce = configFromCache.(*pb.GetConfigResponce)
+		configResponce.Config = configFromCache.(*pb.GetConfigResponce).Config
 		return nil
 	}
 	var err error
@@ -77,7 +77,7 @@ func (s *configServer) GetConfigByName(ctx context.Context, nameRequest *pb.GetC
 	if err != nil {
 		return err
 	}
-	configResponce = &pb.GetConfigResponce{Config: byteRes}
+	configResponce.Config = byteRes
 	s.configCache.Set(nameRequest.ConfigName, configResponce, cache.DefaultExpiration)
 	return nil
 }
@@ -136,6 +136,7 @@ func (s *configServer) GetConfigsByType(ctx context.Context, typeRequest *pb.Get
 
 //CreateConfig calls the function from database package to add a new config record to the database, returns response structure containing a status message
 func (s *configServer) CreateConfig(ctx context.Context, config *pb.Config, responce *pb.Responce) error {
+	var responceStatus string
 	switch config.ConfigType {
 	case mongodb:
 		configStr := entitie.Mongodb{}
@@ -144,12 +145,12 @@ func (s *configServer) CreateConfig(ctx context.Context, config *pb.Config, resp
 			log.Printf("unmarshal config err: %v", err)
 			return err
 		}
-		responceStatus, err := s.mongoDBConfigRepo.Save(&configStr)
+		responceStatus, err = s.mongoDBConfigRepo.Save(&configStr)
 		if err != nil {
 			return err
 		}
 		s.configCache.Flush()
-		responce = &pb.Responce{Status: responceStatus}
+		responce.Status = responceStatus
 		return nil
 
 	case tempconfig:
@@ -159,12 +160,12 @@ func (s *configServer) CreateConfig(ctx context.Context, config *pb.Config, resp
 			log.Printf("unmarshal config err: %v", err)
 			return err
 		}
-		responceStatus, err := s.tempConfigRepo.Save(&configStr)
+		responceStatus, err = s.tempConfigRepo.Save(&configStr)
 		if err != nil {
 			return err
 		}
 		s.configCache.Flush()
-		responce = &pb.Responce{Status: responceStatus}
+		responce.Status = responceStatus
 		return nil
 
 	case tsconfig:
@@ -174,12 +175,12 @@ func (s *configServer) CreateConfig(ctx context.Context, config *pb.Config, resp
 			log.Printf("unmarshal config err: %v", err)
 			return err
 		}
-		responceStatus, err := s.tsConfigRepo.Save(&configStr)
+		responceStatus, err = s.tsConfigRepo.Save(&configStr)
 		if err != nil {
 			return err
 		}
 		s.configCache.Flush()
-		responce = &pb.Responce{Status: responceStatus}
+		responce.Status = responceStatus
 		return nil
 	default:
 		log.Print("unexpected type")
@@ -188,7 +189,7 @@ func (s *configServer) CreateConfig(ctx context.Context, config *pb.Config, resp
 }
 
 //DeleteConfig removes config records from the database. If successful, returns the amount of deleted records in a status message of the response structure
-func (s *configServer) DeleteConfig(ctx context.Context, delConfigRequest *pb.DeleteConfigRequest, responce *pb.Responce) error {
+func (s *configServer) DeleteConfig(ctx context.Context, delConfigRequest *pb.DeleteConfigRequest, response *pb.Responce) error {
 	switch delConfigRequest.ConfigType {
 	case mongodb:
 		responseStatus, err := s.mongoDBConfigRepo.Delete(delConfigRequest.ConfigName)
@@ -196,7 +197,7 @@ func (s *configServer) DeleteConfig(ctx context.Context, delConfigRequest *pb.De
 			return err
 		}
 		s.configCache.Flush()
-		responce = &pb.Responce{Status: responseStatus}
+		response.Status = responseStatus
 		return nil
 	case tempconfig:
 		responseStatus, err := s.tempConfigRepo.Delete(delConfigRequest.ConfigName)
@@ -204,7 +205,7 @@ func (s *configServer) DeleteConfig(ctx context.Context, delConfigRequest *pb.De
 			return err
 		}
 		s.configCache.Flush()
-		responce = &pb.Responce{Status: responseStatus}
+		response.Status = responseStatus
 		return nil
 	case tsconfig:
 		responseStatus, err := s.tsConfigRepo.Delete(delConfigRequest.ConfigName)
@@ -212,7 +213,7 @@ func (s *configServer) DeleteConfig(ctx context.Context, delConfigRequest *pb.De
 			return err
 		}
 		s.configCache.Flush()
-		responce = &pb.Responce{Status: responseStatus}
+		response.Status = responseStatus
 		return nil
 	default:
 		log.Print("unexpected type")
@@ -221,7 +222,7 @@ func (s *configServer) DeleteConfig(ctx context.Context, delConfigRequest *pb.De
 }
 
 //UpdateConfig
-func (s *configServer) UpdateConfig(ctx context.Context, config *pb.Config, response *pb.Responce) error {
+func (s *configServer) UpdateConfig(ctx context.Context, config *pb.Config, responce *pb.Responce) error {
 	var status string
 	switch config.ConfigType {
 	case mongodb:
@@ -262,7 +263,7 @@ func (s *configServer) UpdateConfig(ctx context.Context, config *pb.Config, resp
 		return errors.New("unexpected type")
 	}
 	s.configCache.Flush()
-	response = &pb.Responce{Status: status}
+	responce.Status = status
 	return nil
 }
 
@@ -302,11 +303,9 @@ func main() {
 
 	srv.Init()
 
-	pubsub := micro.NewPublisher()
-
 	configCache := cache.New(time.Duration(cacheExpirationTime)*time.Minute, time.Duration(cacheCleanupInterval)*time.Minute)
 
-	pb.RegisterConfigServiceHandler(srv.Server(), &configServer{configCache: configCache, mongoDBConfigRepo: &mongoDBRepo, tsConfigRepo: &tsConfigRepo, tempConfigRepo: &tempConfigRepo, PubSub: pubsub})
+	pb.RegisterConfigServiceHandler(srv.Server(), &configServer{configCache: configCache, mongoDBConfigRepo: &mongoDBRepo, tsConfigRepo: &tsConfigRepo, tempConfigRepo: &tempConfigRepo})
 
 	if err := srv.Run(); err != nil {
 		fmt.Println(err)
