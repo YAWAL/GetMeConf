@@ -146,7 +146,7 @@ func InitPostgresDB() (db *gorm.DB, err error) {
 	}
 	c.validate()
 	dbInf := url.URL{Scheme: c.dbSchema, User: url.UserPassword(c.dbUser, c.dbPassword), Host: c.dbHost + ":" + c.dbPort, Path: c.dbName}
-	db, err = gorm.Open("postgres", dbInf.String())
+	db, err = gorm.Open("postgres", dbInf.String()+"?sslmode=disable")
 
 	if err != nil {
 		log.Printf("error during connection to postgres database has occurred: %v", err)

@@ -49,3 +49,7 @@ To to run the application in a docker container
 make docker-build
 ``````````````````
 
+To to run the application in a docker container together with a postgres database image in docker-compose mode. Environmental variables in .env file should be changed.
+``````````````````
+make docker-compose-build
+``````````````````
