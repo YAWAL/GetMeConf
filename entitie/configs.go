@@ -4,7 +4,7 @@ package entitie
 //Mongodb is an random config example
 type Mongodb struct {
 	Domain  string `json:"domain" validate:"nonzero"`
-	Mongodb bool   `json:"mongodb" validate:"nonzero"`
+	Mongodb bool   `json:"mongodb" validate:"regexp=^(true|false)$`
 	Host    string `json:"host" validate:"nonzero"`
 	Port    string `json:"port" validate:"nonzero"`
 }
@@ -13,7 +13,7 @@ type Mongodb struct {
 type Tsconfig struct {
 	Module    string `json:"module" validate:"nonzero"`
 	Target    string `json:"target" validate:"nonzero"`
-	SourceMap bool   `json:"sourceMap" validate:"nonzero"`
+	SourceMap bool   `json:"sourceMap" validate:"regexp=^(true|false)$`
 	Excluding int    `json:"excluding" validate:"nonzero"`
 }
 
@@ -23,7 +23,7 @@ type Tempconfig struct {
 	Host           string `json:"host" validate:"nonzero"`
 	Port           string `json:"port" validate:"nonzero"`
 	Remoting       string `json:"remoting" validate:"nonzero"`
-	LegasyExplorer bool   `json:"legasyExplorer" validate:"nonzero"`
+	LegasyExplorer bool   `json:"legasyExplorer" validate:"regexp=^(true|false)$`
 }
 
 //ConfigInterface is an interface for all config structures

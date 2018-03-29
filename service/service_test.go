@@ -353,14 +353,14 @@ func TestCreateConfig(t *testing.T) {
 	mock.tsConfigRepo = &mockErrorTsConfigRepo{}
 	mock.tempConfigRepo = &mockErrorTempConfigRepo{}
 
-	expectedError := validator.ErrorMap{"Domain": validator.ErrorArray{validator.TextErr{Err: errors.New("zero value")}}, "Mongodb": validator.ErrorArray{validator.TextErr{Err: errors.New("zero value")}}}
+	expectedError := validator.ErrorMap{"Domain": validator.ErrorArray{validator.TextErr{Err: errors.New("zero value")}}}
 
 	_, resultingErr := mock.CreateConfig(context.Background(), &pb.Config{ConfigType: "mongodb", Config: byteRes})
 	if assert.Error(t, resultingErr) {
 		assert.Equal(t, expectedError, resultingErr)
 	}
 	resultingErr = nil
-	expectedError = validator.ErrorMap{"Excluding": validator.ErrorArray{validator.TextErr{Err: errors.New("zero value")}}, "Module": validator.ErrorArray{validator.TextErr{Err: errors.New("zero value")}}, "Target": validator.ErrorArray{validator.TextErr{Err: errors.New("zero value")}}, "SourceMap": validator.ErrorArray{validator.TextErr{Err: errors.New("zero value")}}}
+	expectedError = validator.ErrorMap{"Excluding": validator.ErrorArray{validator.TextErr{Err: errors.New("zero value")}}, "Module": validator.ErrorArray{validator.TextErr{Err: errors.New("zero value")}}, "Target": validator.ErrorArray{validator.TextErr{Err: errors.New("zero value")}}}
 	_, resultingErr = mock.CreateConfig(context.Background(), &pb.Config{ConfigType: "tsconfig", Config: byteRes})
 	if assert.Error(t, resultingErr) {
 		assert.Equal(t, expectedError, resultingErr)
