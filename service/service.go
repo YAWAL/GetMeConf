@@ -23,6 +23,7 @@ import (
 	"github.com/patrickmn/go-cache"
 	"golang.org/x/net/context"
 	"google.golang.org/grpc"
+	"gopkg.in/validator.v2"
 )
 
 var (
@@ -145,6 +146,9 @@ func (s *configServer) CreateConfig(ctx context.Context, config *pb.Config) (*pb
 			log.Printf("unmarshal config err: %v", err)
 			return nil, err
 		}
+		if err = validator.Validate(configStr); err != nil {
+			return nil, err
+		}
 		response, err := s.mongoDBConfigRepo.Save(&configStr)
 		if err != nil {
 			return nil, err
@@ -159,6 +163,9 @@ func (s *configServer) CreateConfig(ctx context.Context, config *pb.Config) (*pb
 			log.Printf("unmarshal config err: %v", err)
 			return nil, err
 		}
+		if err = validator.Validate(configStr); err != nil {
+			return nil, err
+		}
 		response, err := s.tempConfigRepo.Save(&configStr)
 		if err != nil {
 			return nil, err
@@ -171,6 +178,9 @@ func (s *configServer) CreateConfig(ctx context.Context, config *pb.Config) (*pb
 		err := json.Unmarshal(config.Config, &configStr)
 		if err != nil {
 			log.Printf("unmarshal config err: %v", err)
+			return nil, err
+		}
+		if err = validator.Validate(configStr); err != nil {
 			return nil, err
 		}
 		response, err := s.tsConfigRepo.Save(&configStr)
@@ -226,6 +236,9 @@ func (s *configServer) UpdateConfig(ctx context.Context, config *pb.Config) (*pb
 			log.Printf("unmarshal config err: %v", err)
 			return nil, err
 		}
+		if err = validator.Validate(configStr); err != nil {
+			return nil, err
+		}
 		status, err = s.mongoDBConfigRepo.Update(&configStr)
 		if err != nil {
 			return nil, err
@@ -237,6 +250,9 @@ func (s *configServer) UpdateConfig(ctx context.Context, config *pb.Config) (*pb
 			log.Printf("unmarshal config err: %v", err)
 			return nil, err
 		}
+		if err = validator.Validate(configStr); err != nil {
+			return nil, err
+		}
 		status, err = s.tempConfigRepo.Update(&configStr)
 		if err != nil {
 			return nil, err
@@ -246,6 +262,9 @@ func (s *configServer) UpdateConfig(ctx context.Context, config *pb.Config) (*pb
 		err := json.Unmarshal(config.Config, &configStr)
 		if err != nil {
 			log.Printf("unmarshal config err: %v", err)
+			return nil, err
+		}
+		if err = validator.Validate(configStr); err != nil {
 			return nil, err
 		}
 		status, err = s.tsConfigRepo.Update(&configStr)

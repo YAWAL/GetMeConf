@@ -147,9 +147,15 @@
   revision = "21b0b93e8253d575d9185974835423f98d30158d"
   version = "v1.2.0"
 
+[[projects]]
+  branch = "v2"
+  name = "gopkg.in/validator.v2"
+  packages = ["."]
+  revision = "59c90c7046f643cbe0d4e7c8776c42a84ce75910"
+
 [solve-meta]
   analyzer-name = "dep"
   analyzer-version = 1
-  inputs-digest = "824ee188902f7c3b1c8d19e0be8f99c8f495e7c17a90b970e26b8a83a9728d5c"
+  inputs-digest = "ed62ee84e899c7f61c3aef776c40025db3a80d066ab252ac13b55d3eafc43820"
   solver-name = "gps-cdcl"
   solver-version = 1
