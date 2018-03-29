@@ -15,6 +15,7 @@ import (
 	"github.com/patrickmn/go-cache"
 	"github.com/stretchr/testify/assert"
 	"google.golang.org/grpc"
+	"gopkg.in/validator.v2"
 )
 
 type mockMongoDBConfigRepo struct {
@@ -351,21 +352,24 @@ func TestCreateConfig(t *testing.T) {
 	mock.mongoDBConfigRepo = &mockErrorMongoDBConfigRepo{}
 	mock.tsConfigRepo = &mockErrorTsConfigRepo{}
 	mock.tempConfigRepo = &mockErrorTempConfigRepo{}
-	expectedError := errors.New("error from database querying")
+
+	expectedError := validator.ErrorMap{"Domain": validator.ErrorArray{validator.TextErr{Err: errors.New("zero value")}}, "Mongodb": validator.ErrorArray{validator.TextErr{Err: errors.New("zero value")}}}
 
 	_, resultingErr := mock.CreateConfig(context.Background(), &pb.Config{ConfigType: "mongodb", Config: byteRes})
 	if assert.Error(t, resultingErr) {
 		assert.Equal(t, expectedError, resultingErr)
 	}
 	resultingErr = nil
+	expectedError = validator.ErrorMap{"Excluding": validator.ErrorArray{validator.TextErr{Err: errors.New("zero value")}}, "Module": validator.ErrorArray{validator.TextErr{Err: errors.New("zero value")}}, "Target": validator.ErrorArray{validator.TextErr{Err: errors.New("zero value")}}, "SourceMap": validator.ErrorArray{validator.TextErr{Err: errors.New("zero value")}}}
 	_, resultingErr = mock.CreateConfig(context.Background(), &pb.Config{ConfigType: "tsconfig", Config: byteRes})
 	if assert.Error(t, resultingErr) {
 		assert.Equal(t, expectedError, resultingErr)
 	}
 	resultingErr = nil
+	expError := errors.New("error from database querying")
 	_, resultingErr = mock.CreateConfig(context.Background(), &pb.Config{ConfigType: "tempconfig", Config: byteRes})
 	if assert.Error(t, resultingErr) {
-		assert.Equal(t, expectedError, resultingErr)
+		assert.Equal(t, expError, resultingErr)
 	}
 	resultingErr = nil
 	_, resultingErr = mock.CreateConfig(context.Background(), &pb.Config{ConfigType: "unexpectedType", Config: byteRes})
