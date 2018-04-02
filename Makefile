@@ -37,3 +37,9 @@ docker-build:
 clean:
 	echo "Removing previous build"
 	rm -rf ${GOPATH}/src/github.com/YAWAL/GetMeConf/bin/service
+
+coverage:
+	./tools/coverage.sh;
+
+coveragehtml:
+	./tools/coverage.sh html;
