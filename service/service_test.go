@@ -20,6 +20,11 @@ import (
 	"gopkg.in/validator.v2"
 )
 
+const (
+	testDefaultExpirationTimeOfCacheMin = 5
+	testCleanupInternalOfCacheMin       = 10
+)
+
 type mockMongoDBConfigRepo struct {
 }
 
@@ -156,8 +161,7 @@ func (m *mockErrorTempConfigRepo) Delete(configName string) (string, error) {
 }
 
 func TestGetConfigByName(t *testing.T) {
-
-	configCache := cache.New(5*time.Minute, 10*time.Minute)
+	configCache := cache.New(testDefaultExpirationTimeOfCacheMin*time.Minute, testCleanupInternalOfCacheMin*time.Minute)
 	mock := &mockConfigServer{}
 	mock.configCache = configCache
 	mock.mongoDBConfigRepo = &mockMongoDBConfigRepo{}
@@ -223,7 +227,7 @@ func TestGetConfigByName(t *testing.T) {
 func TestGetConfigByName_FromCache(t *testing.T) {
 	testName := "testName"
 	testConf := entitie.Mongodb{Domain: testName, Mongodb: true, Host: "testHost", Port: "testPort"}
-	configCache := cache.New(5*time.Minute, 10*time.Minute)
+	configCache := cache.New(testDefaultExpirationTimeOfCacheMin*time.Minute, testCleanupInternalOfCacheMin*time.Minute)
 	mock := &mockConfigServer{}
 	mock.configCache = configCache
 
@@ -232,7 +236,7 @@ func TestGetConfigByName_FromCache(t *testing.T) {
 		t.Error("error during unit testing: ", err)
 	}
 	configResponse := &pb.GetConfigResponce{Config: byteRes}
-	mock.configCache.Set(testName, configResponse, 5*time.Minute)
+	mock.configCache.Set(testName, configResponse, testDefaultExpirationTimeOfCacheMin*time.Minute)
 	res, err := mock.GetConfigByName(context.Background(), &pb.GetConfigByNameRequest{ConfigType: "mongodb", ConfigName: "testName"})
 	if err != nil {
 		t.Error("error during unit testing: ", err)
@@ -243,7 +247,6 @@ func TestGetConfigByName_FromCache(t *testing.T) {
 		t.Error("error during unit testing: ", err)
 	}
 	assert.Equal(t, expectedConfig, res.Config)
-
 }
 
 func TestGetConfigsByType(t *testing.T) {
@@ -319,7 +322,7 @@ func TestInitServiceConfiguration(t *testing.T) {
 
 func TestCreateConfig(t *testing.T) {
 
-	configCache := cache.New(5*time.Minute, 10*time.Minute)
+	configCache := cache.New(testDefaultExpirationTimeOfCacheMin*time.Minute, testCleanupInternalOfCacheMin*time.Minute)
 	mock := &mockConfigServer{}
 	mock.configCache = configCache
 	mock.mongoDBConfigRepo = &mockMongoDBConfigRepo{}
@@ -410,7 +413,6 @@ func TestCreateConfig(t *testing.T) {
 	}
 
 	// temp validation error
-
 	resultingErr = nil
 	testConfTempEmpty := entitie.Tempconfig{Host: "", Port: "", Remoting: "", LegasyExplorer: false, RestApiRoot: ""}
 	byteResTempEmpty, err := json.Marshal(testConfTempEmpty)
@@ -438,12 +440,11 @@ func TestCreateConfig(t *testing.T) {
 	if assert.Error(t, resultingErr) {
 		assert.Equal(t, errors.New("unexpected type"), resultingErr)
 	}
-
 }
 
 func TestDeleteConfig(t *testing.T) {
 
-	configCache := cache.New(5*time.Minute, 10*time.Minute)
+	configCache := cache.New(testDefaultExpirationTimeOfCacheMin*time.Minute, testCleanupInternalOfCacheMin*time.Minute)
 	mock := &mockConfigServer{}
 	mock.configCache = configCache
 	mock.mongoDBConfigRepo = &mockMongoDBConfigRepo{}
@@ -461,14 +462,12 @@ func TestDeleteConfig(t *testing.T) {
 	if err != nil {
 		t.Error("error during unit testing: ", err)
 	}
-
 	assert.Equal(t, expectedResponse, res)
 
 	res, err = mock.DeleteConfig(context.Background(), &pb.DeleteConfigRequest{ConfigType: "tempconfig", ConfigName: "testName"})
 	if err != nil {
 		t.Error("error during unit testing: ", err)
 	}
-
 	assert.Equal(t, expectedResponse, res)
 
 	// testing error cases
@@ -499,7 +498,7 @@ func TestDeleteConfig(t *testing.T) {
 
 func TestUpdateConfig(t *testing.T) {
 
-	configCache := cache.New(5*time.Minute, 10*time.Minute)
+	configCache := cache.New(testDefaultExpirationTimeOfCacheMin*time.Minute, testCleanupInternalOfCacheMin*time.Minute)
 	mock := &mockConfigServer{}
 	mock.configCache = configCache
 	mock.mongoDBConfigRepo = &mockMongoDBConfigRepo{}
