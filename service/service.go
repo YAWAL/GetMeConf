@@ -45,6 +45,12 @@ type configServer struct {
 	tsConfigRepo      repository.TsConfigRepo
 }
 
+type serviceConfiguration struct {
+	port                 string
+	cacheExpirationTime  int
+	cacheCleanupInterval int
+}
+
 //GetConfigByName returns one config in GetConfigResponce message
 func (s *configServer) GetConfigByName(ctx context.Context, nameRequest *pb.GetConfigByNameRequest) (*pb.GetConfigResponce, error) {
 
@@ -225,7 +231,7 @@ func (s *configServer) DeleteConfig(ctx context.Context, delConfigRequest *pb.De
 	}
 }
 
-//UpdateConfig
+//UpdateConfig updates a config stored in database
 func (s *configServer) UpdateConfig(ctx context.Context, config *pb.Config) (*pb.Responce, error) {
 	var status string
 	switch config.ConfigType {
@@ -279,8 +285,7 @@ func (s *configServer) UpdateConfig(ctx context.Context, config *pb.Config) (*pb
 	return &pb.Responce{Status: status}, nil
 }
 
-func main() {
-
+func initServiceConfiguration() *serviceConfiguration {
 	port := os.Getenv("SERVICE_PORT")
 	if port == "" {
 		log.Println("error during reading env. variable, default value is used")
@@ -296,7 +301,12 @@ func main() {
 		log.Printf("error during reading env. variable: %v, default value is used", err)
 		cacheCleanupInterval = defaultCacheCleanupInterval
 	}
+	return &serviceConfiguration{port: port, cacheCleanupInterval: cacheCleanupInterval, cacheExpirationTime: cacheExpirationTime}
+}
 
+func main() {
+
+	serviceConfiguration := initServiceConfiguration()
 	dbConn, err := repository.InitPostgresDB()
 	if err != nil {
 		log.Fatalf("failed to init postgres db: %v", err)
@@ -305,16 +315,16 @@ func main() {
 	tsConfigRepo := repository.TsConfigRepoImpl{DB: dbConn}
 	tempConfigRepo := repository.TempConfigRepoImpl{DB: dbConn}
 
-	lis, err := net.Listen("tcp", fmt.Sprintf(":%s", port))
+	lis, err := net.Listen("tcp", fmt.Sprintf(":%s", serviceConfiguration.port))
 	if err != nil {
 		log.Fatalf("failed to listen: %v", err)
 	}
 
-	log.Printf("server started at :%s", port)
+	log.Printf("server started at :%s", serviceConfiguration.port)
 
 	grpcServer := grpc.NewServer()
 
-	configCache := cache.New(time.Duration(cacheExpirationTime)*time.Minute, time.Duration(cacheCleanupInterval)*time.Minute)
+	configCache := cache.New(time.Duration(serviceConfiguration.cacheExpirationTime)*time.Minute, time.Duration(serviceConfiguration.cacheCleanupInterval)*time.Minute)
 
 	pb.RegisterConfigServiceServer(grpcServer, &configServer{configCache: configCache, mongoDBConfigRepo: &mongoDBRepo, tsConfigRepo: &tsConfigRepo, tempConfigRepo: &tempConfigRepo})
 

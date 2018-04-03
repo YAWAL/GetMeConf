@@ -1,7 +1,12 @@
 #!/bin/bash
-COVERAGE_DIR=${GOPATH}/src/github.com/YAWAL/GetMeConf/tools
+
+GOPATH="/home/vritual/go"
+GOROOT="/usr/local/go make coverage"
+
+COVERAGE_DIR="${GOPATH}/src/github.com/YAWAL/GetMeConf/tools"
+
 COVERAGE_DIR="${COVERAGE_DIR:-coverage}"
-PKG_LIST=${go list ./... | grep -v /vendor/)
+PKG_LIST=$(go list ./... | grep -v /vendor/)
 
 mkdir -p "$COVERAGE_DIR";
 

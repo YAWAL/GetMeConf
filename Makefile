@@ -29,6 +29,11 @@ tests:
 	go test ./service
 	go test ./repository
 
+race:
+	echo "Race tests"
+	go test ./service -race
+	go test ./repository -race
+
 docker-build:
 	CC=$(which musl-gcc) go build --ldflags '-w -linkmode external -extldflags "-static"' -o ${GOPATH}/src/github.com/YAWAL/GetMeConf/bin/service ./service && \
 	docker build -t configservice . && \

@@ -11,6 +11,8 @@ import (
 
 	"errors"
 
+	"os"
+
 	"github.com/YAWAL/GetMeConf/entitie"
 	"github.com/patrickmn/go-cache"
 	"github.com/stretchr/testify/assert"
@@ -195,6 +197,7 @@ func TestGetConfigByName(t *testing.T) {
 
 	mock.configCache.Flush()
 
+	// testing error cases
 	mock.mongoDBConfigRepo = &mockErrorMongoDBConfigRepo{}
 	expectedError := errors.New("error from database querying")
 	_, err = mock.GetConfigByName(context.Background(), &pb.GetConfigByNameRequest{ConfigType: "mongodb", ConfigName: "testNameMongo"})
@@ -258,6 +261,8 @@ func TestGetConfigsByType(t *testing.T) {
 	if err != nil {
 		t.Error("error during unit testing of GetConfigsByType function: ", err)
 	}
+
+	// testing error cases
 	err = mock.GetConfigsByType(&pb.GetConfigsByTypeRequest{ConfigType: "unexpectedConfigType"}, mock)
 	if assert.Error(t, err) {
 		assert.Equal(t, errors.New("unexpected type"), err)
@@ -303,6 +308,15 @@ func (mcs *mockConfigServer) Send(response *pb.GetConfigResponce) error {
 	return nil
 }
 
+func TestInitServiceConfiguration(t *testing.T) {
+	os.Setenv("SERVICE_PORT", "")
+	os.Setenv("CACHE_EXPIRATION_TIME", "test")
+	os.Setenv("CACHE_CLEANUP_INTERVAL", "test")
+	expectedOut := serviceConfiguration{port: defaultPort, cacheExpirationTime: defaultCacheExpirationTime, cacheCleanupInterval: defaultCacheCleanupInterval}
+	realOutput := initServiceConfiguration()
+	assert.Equal(t, &expectedOut, realOutput)
+}
+
 func TestCreateConfig(t *testing.T) {
 
 	configCache := cache.New(5*time.Minute, 10*time.Minute)
@@ -313,12 +327,12 @@ func TestCreateConfig(t *testing.T) {
 	mock.tempConfigRepo = &mockTempConfigRepo{}
 
 	testConfMongo := entitie.Mongodb{Domain: "testName", Mongodb: true, Host: "testHost", Port: "testPort"}
-	byteRes, err := json.Marshal(testConfMongo)
+	byteResMongo, err := json.Marshal(testConfMongo)
 	if err != nil {
 		t.Error("error during unit testing: ", err)
 	}
 
-	res, err := mock.CreateConfig(context.Background(), &pb.Config{ConfigType: "mongodb", Config: byteRes})
+	res, err := mock.CreateConfig(context.Background(), &pb.Config{ConfigType: "mongodb", Config: byteResMongo})
 	if err != nil {
 		t.Error("error during unit testing: ", err)
 	}
@@ -326,56 +340,105 @@ func TestCreateConfig(t *testing.T) {
 	assert.Equal(t, expectedResponse, res)
 
 	testConfTs := entitie.Tsconfig{Module: "testModule", Target: "testTarget", SourceMap: true, Excluding: 1}
-	byteRes, err = json.Marshal(testConfTs)
+	byteResTs, err := json.Marshal(testConfTs)
 	if err != nil {
 		t.Error("error during unit testing: ", err)
 	}
 
-	res, err = mock.CreateConfig(context.Background(), &pb.Config{ConfigType: "tsconfig", Config: byteRes})
+	res, err = mock.CreateConfig(context.Background(), &pb.Config{ConfigType: "tsconfig", Config: byteResTs})
 	if err != nil {
 		t.Error("error during unit testing: ", err)
 	}
 	assert.Equal(t, expectedResponse, res)
 
 	testConfTemp := entitie.Tempconfig{RestApiRoot: "testApiRoot", Host: "testHost", Port: "testPort", Remoting: "testRemoting", LegasyExplorer: true}
-	byteRes, err = json.Marshal(testConfTemp)
+	byteResTemp, err := json.Marshal(testConfTemp)
 	if err != nil {
 		t.Error("error during unit testing: ", err)
 	}
 
-	res, err = mock.CreateConfig(context.Background(), &pb.Config{ConfigType: "tempconfig", Config: byteRes})
+	res, err = mock.CreateConfig(context.Background(), &pb.Config{ConfigType: "tempconfig", Config: byteResTemp})
 	if err != nil {
 		t.Error("error during unit testing: ", err)
 	}
 	assert.Equal(t, expectedResponse, res)
 
+	// testing error cases
 	mock.mongoDBConfigRepo = &mockErrorMongoDBConfigRepo{}
 	mock.tsConfigRepo = &mockErrorTsConfigRepo{}
 	mock.tempConfigRepo = &mockErrorTempConfigRepo{}
 
-	expectedError := validator.ErrorMap{"Domain": validator.ErrorArray{validator.TextErr{Err: errors.New("zero value")}}}
+	// mongodb validation error
+	expectedError := validator.ErrorMap{"Domain": validator.ErrorArray{validator.TextErr{Err: errors.New("zero value")}}, "Host": validator.ErrorArray{validator.TextErr{Err: errors.New("zero value")}}, "Port": validator.ErrorArray{validator.TextErr{Err: errors.New("zero value")}}}
+	testConfMongoEmpty := entitie.Mongodb{Domain: "", Mongodb: false, Host: "", Port: ""}
+	byteResMongoEmpty, err := json.Marshal(testConfMongoEmpty)
+	if err != nil {
+		t.Error("error during unit testing: ", err)
+	}
+	_, resultingErr := mock.CreateConfig(context.Background(), &pb.Config{ConfigType: "mongodb", Config: byteResMongoEmpty})
+	if assert.Error(t, resultingErr) {
+		assert.Equal(t, expectedError, resultingErr)
+	}
 
-	_, resultingErr := mock.CreateConfig(context.Background(), &pb.Config{ConfigType: "mongodb", Config: byteRes})
-	if assert.Error(t, resultingErr) {
-		assert.Equal(t, expectedError, resultingErr)
-	}
-	resultingErr = nil
-	expectedError = validator.ErrorMap{"Excluding": validator.ErrorArray{validator.TextErr{Err: errors.New("zero value")}}, "Module": validator.ErrorArray{validator.TextErr{Err: errors.New("zero value")}}, "Target": validator.ErrorArray{validator.TextErr{Err: errors.New("zero value")}}}
-	_, resultingErr = mock.CreateConfig(context.Background(), &pb.Config{ConfigType: "tsconfig", Config: byteRes})
-	if assert.Error(t, resultingErr) {
-		assert.Equal(t, expectedError, resultingErr)
-	}
-	resultingErr = nil
+	// mongodb saving error
 	expError := errors.New("error from database querying")
-	_, resultingErr = mock.CreateConfig(context.Background(), &pb.Config{ConfigType: "tempconfig", Config: byteRes})
+	resultingErr = nil
+	_, resultingErr = mock.CreateConfig(context.Background(), &pb.Config{ConfigType: "mongodb", Config: byteResMongo})
 	if assert.Error(t, resultingErr) {
 		assert.Equal(t, expError, resultingErr)
 	}
+
+	// ts validation error
 	resultingErr = nil
-	_, resultingErr = mock.CreateConfig(context.Background(), &pb.Config{ConfigType: "unexpectedType", Config: byteRes})
+	testConfTsEmpty := entitie.Tsconfig{Excluding: 0, Target: "", Module: "", SourceMap: false}
+	byteResTsEmpty, err := json.Marshal(testConfTsEmpty)
+	if err != nil {
+		t.Error("error during unit testing: ", err)
+	}
+
+	expectedError = validator.ErrorMap{"Excluding": validator.ErrorArray{validator.TextErr{Err: errors.New("zero value")}}, "Module": validator.ErrorArray{validator.TextErr{Err: errors.New("zero value")}}, "Target": validator.ErrorArray{validator.TextErr{Err: errors.New("zero value")}}}
+	_, resultingErr = mock.CreateConfig(context.Background(), &pb.Config{ConfigType: "tsconfig", Config: byteResTsEmpty})
+	if assert.Error(t, resultingErr) {
+		assert.Equal(t, expectedError, resultingErr)
+	}
+
+	// ts saving error
+	expError = errors.New("error from database querying")
+	_, resultingErr = mock.CreateConfig(context.Background(), &pb.Config{ConfigType: "tsconfig", Config: byteResTs})
+	if assert.Error(t, resultingErr) {
+		assert.Equal(t, expError, resultingErr)
+	}
+
+	// temp validation error
+
+	resultingErr = nil
+	testConfTempEmpty := entitie.Tempconfig{Host: "", Port: "", Remoting: "", LegasyExplorer: false, RestApiRoot: ""}
+	byteResTempEmpty, err := json.Marshal(testConfTempEmpty)
+	if err != nil {
+		t.Error("error during unit testing: ", err)
+	}
+
+	expectedError = validator.ErrorMap{"RestApiRoot": validator.ErrorArray{validator.TextErr{Err: errors.New("zero value")}}, "Host": validator.ErrorArray{validator.TextErr{Err: errors.New("zero value")}}, "Port": validator.ErrorArray{validator.TextErr{Err: errors.New("zero value")}}, "Remoting": validator.ErrorArray{validator.TextErr{Err: errors.New("zero value")}}}
+	_, resultingErr = mock.CreateConfig(context.Background(), &pb.Config{ConfigType: "tempconfig", Config: byteResTempEmpty})
+	if assert.Error(t, resultingErr) {
+		assert.Equal(t, expectedError, resultingErr)
+	}
+
+	// temp saving error
+	resultingErr = nil
+	expError = errors.New("error from database querying")
+	_, resultingErr = mock.CreateConfig(context.Background(), &pb.Config{ConfigType: "tempconfig", Config: byteResTemp})
+	if assert.Error(t, resultingErr) {
+		assert.Equal(t, expError, resultingErr)
+	}
+
+	// unexpectedType error
+	resultingErr = nil
+	_, resultingErr = mock.CreateConfig(context.Background(), &pb.Config{ConfigType: "unexpectedType", Config: byteResMongo})
 	if assert.Error(t, resultingErr) {
 		assert.Equal(t, errors.New("unexpected type"), resultingErr)
 	}
+
 }
 
 func TestDeleteConfig(t *testing.T) {
@@ -408,6 +471,7 @@ func TestDeleteConfig(t *testing.T) {
 
 	assert.Equal(t, expectedResponse, res)
 
+	// testing error cases
 	mock.mongoDBConfigRepo = &mockErrorMongoDBConfigRepo{}
 	mock.tsConfigRepo = &mockErrorTsConfigRepo{}
 	mock.tempConfigRepo = &mockErrorTempConfigRepo{}
@@ -464,30 +528,79 @@ func TestUpdateConfig(t *testing.T) {
 	assert.Equal(t, &pb.Responce{Status: "OK"}, resp)
 	resp, err = mock.UpdateConfig(context.Background(), &pb.Config{ConfigType: "tempconfig", Config: byteResTemp})
 	assert.Equal(t, &pb.Responce{Status: "OK"}, resp)
+
+	// testing error cases
+	// testing unexpected type
 	_, err = mock.UpdateConfig(context.Background(), &pb.Config{ConfigType: "unexpectedConfigType"})
 	if assert.Error(t, err) {
 		assert.Equal(t, errors.New("unexpected type"), err)
 	}
 
-	expectedError := errors.New("error from database querying")
+	// mongodb validation error
+	expectedError := validator.ErrorMap{"Domain": validator.ErrorArray{validator.TextErr{Err: errors.New("zero value")}}, "Host": validator.ErrorArray{validator.TextErr{Err: errors.New("zero value")}}, "Port": validator.ErrorArray{validator.TextErr{Err: errors.New("zero value")}}}
+	testConfMongoEmpty := entitie.Mongodb{Domain: "", Mongodb: false, Host: "", Port: ""}
+	byteResMongoEmpty, err := json.Marshal(testConfMongoEmpty)
+	if err != nil {
+		t.Error("error during unit testing: ", err)
+	}
+	_, resultingErr := mock.CreateConfig(context.Background(), &pb.Config{ConfigType: "mongodb", Config: byteResMongoEmpty})
+	if assert.Error(t, resultingErr) {
+		assert.Equal(t, expectedError, resultingErr)
+	}
+
+	// mongodb saving error
+	expError := errors.New("error from database querying")
+	resultingErr = nil
 	mock.mongoDBConfigRepo = &mockErrorMongoDBConfigRepo{}
 	err = nil
 	_, err = mock.UpdateConfig(context.Background(), &pb.Config{ConfigType: "mongodb", Config: byteResMongo})
 	if assert.Error(t, err) {
-		assert.Equal(t, expectedError, err)
+		assert.Equal(t, expError, err)
 	}
 
+	// ts validation error
+	resultingErr = nil
+	testConfTsEmpty := entitie.Tsconfig{Excluding: 0, Target: "", Module: "", SourceMap: false}
+	byteResTsEmpty, err := json.Marshal(testConfTsEmpty)
+	if err != nil {
+		t.Error("error during unit testing: ", err)
+	}
+	expectedError = validator.ErrorMap{"Excluding": validator.ErrorArray{validator.TextErr{Err: errors.New("zero value")}}, "Module": validator.ErrorArray{validator.TextErr{Err: errors.New("zero value")}}, "Target": validator.ErrorArray{validator.TextErr{Err: errors.New("zero value")}}}
+	_, resultingErr = mock.UpdateConfig(context.Background(), &pb.Config{ConfigType: "tsconfig", Config: byteResTsEmpty})
+	if assert.Error(t, resultingErr) {
+		assert.Equal(t, expectedError, resultingErr)
+	}
+
+	// ts saving error
+	expError = errors.New("error from database querying")
 	err = nil
 	mock.tsConfigRepo = &mockErrorTsConfigRepo{}
 	_, err = mock.UpdateConfig(context.Background(), &pb.Config{ConfigType: "tsconfig", Config: byteResTs})
 	if assert.Error(t, err) {
-		assert.Equal(t, expectedError, err)
+		assert.Equal(t, expError, err)
 	}
 
+	// temp validation error
+	resultingErr = nil
+	testConfTempEmpty := entitie.Tempconfig{Host: "", Port: "", Remoting: "", LegasyExplorer: false, RestApiRoot: ""}
+	byteResTempEmpty, err := json.Marshal(testConfTempEmpty)
+	if err != nil {
+		t.Error("error during unit testing: ", err)
+	}
+
+	expectedError = validator.ErrorMap{"RestApiRoot": validator.ErrorArray{validator.TextErr{Err: errors.New("zero value")}}, "Host": validator.ErrorArray{validator.TextErr{Err: errors.New("zero value")}}, "Port": validator.ErrorArray{validator.TextErr{Err: errors.New("zero value")}}, "Remoting": validator.ErrorArray{validator.TextErr{Err: errors.New("zero value")}}}
+	_, resultingErr = mock.UpdateConfig(context.Background(), &pb.Config{ConfigType: "tempconfig", Config: byteResTempEmpty})
+	if assert.Error(t, resultingErr) {
+		assert.Equal(t, expectedError, resultingErr)
+	}
+
+	// temp saving error
+	resultingErr = nil
+	expError = errors.New("error from database querying")
 	err = nil
 	mock.tempConfigRepo = &mockErrorTempConfigRepo{}
 	_, err = mock.UpdateConfig(context.Background(), &pb.Config{ConfigType: "tempconfig", Config: byteResTemp})
 	if assert.Error(t, err) {
-		assert.Equal(t, expectedError, err)
+		assert.Equal(t, expError, err)
 	}
 }

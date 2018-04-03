@@ -17,6 +17,8 @@ import (
 
 	"strconv"
 
+	"os"
+
 	"github.com/stretchr/testify/assert"
 	"gopkg.in/DATA-DOG/go-sqlmock.v1"
 )
@@ -38,6 +40,55 @@ func newDB() (sqlmock.Sqlmock, *gorm.DB, error) {
 
 func formatRequest(s string) string {
 	return fmt.Sprintf("^%s$", regexp.QuoteMeta(s))
+}
+
+func TestValidate(t *testing.T) {
+	pcEmpty := postgresConfig{dbSchema: "", dbPort: "", dbHost: "", dbUser: "", dbPassword: "", dbName: "", maxOpenedConnectionsToDb: 0, maxIdleConnectionsToDb: 0, mbConnMaxLifetimeMinutes: 0}
+	pcEmpty.validate()
+	pcExp := postgresConfig{dbSchema: defaultDbScheme, dbPort: defaultDbPort, dbHost: defaultDbHost, dbUser: defaultDbUser, dbPassword: defaultDbPassword, dbName: defaultDbName, maxOpenedConnectionsToDb: defaultMaxOpenedConnectionsToDb, maxIdleConnectionsToDb: defaultMaxIdleConnectionsToDb, mbConnMaxLifetimeMinutes: defaultmbConnMaxLifetimeMinutes}
+	assert.Equal(t, pcExp, pcEmpty)
+}
+
+func TestInitPostgresConfig(t *testing.T) {
+	os.Setenv("PDB_SCHEME", "testSchema")
+	os.Setenv("PDB_HOST", "testHost")
+	os.Setenv("PDB_PORT", "testPort")
+	os.Setenv("PDB_USER", "testUser")
+	os.Setenv("PDB_PASSWORD", "testPass")
+	os.Setenv("PDB_NAME", "testName")
+	os.Setenv("MAX_OPENED_CONNECTIONS_TO_DB", "test")
+	os.Setenv("MAX_IDLE_CONNECTIONS_TO_DB", "test")
+	os.Setenv("MB_CONN_MAX_LIFETIME_MINUTES", "test")
+	pcInit := initPostgresConfig()
+	pcExp := postgresConfig{dbSchema: "testSchema", dbPort: "testPort", dbHost: "testHost", dbUser: "testUser", dbPassword: "testPass", dbName: "testName", maxOpenedConnectionsToDb: 0, maxIdleConnectionsToDb: 0, mbConnMaxLifetimeMinutes: 0}
+	assert.Equal(t, &pcExp, pcInit)
+}
+
+func TestNewMongoDBConfigRepo(t *testing.T) {
+	_, db, _ := newDB()
+	exp := MongoDBConfigRepoImpl{
+		DB: db,
+	}
+	result := NewMongoDBConfigRepo(db)
+	assert.Equal(t, &exp, result)
+}
+
+func TestNewTsConfigConfigRepo(t *testing.T) {
+	_, db, _ := newDB()
+	exp := TsConfigRepoImpl{
+		DB: db,
+	}
+	result := NewTsConfigRepo(db)
+	assert.Equal(t, &exp, result)
+}
+
+func TestNewTempConfigConfigRepo(t *testing.T) {
+	_, db, _ := newDB()
+	exp := TempConfigRepoImpl{
+		DB: db,
+	}
+	result := NewTempConfigRepo(db)
+	assert.Equal(t, &exp, result)
 }
 
 func TestFind(t *testing.T) {
