@@ -1,8 +1,5 @@
 #!/bin/bash
 
-GOPATH="/home/vritual/go"
-GOROOT="/usr/local/go make coverage"
-
 COVERAGE_DIR="${GOPATH}/src/github.com/YAWAL/GetMeConf/tools"
 
 COVERAGE_DIR="${COVERAGE_DIR:-coverage}"
