@@ -173,7 +173,6 @@ func InitPostgresDB() (db *gorm.DB, err error) {
 }
 
 func gormMigrate(db *gorm.DB) error {
-	db.LogMode(true)
 	m := gormigrate.New(db, gormigrate.DefaultOptions, []*gormigrate.Migration{
 		{
 			ID: "Initial",
