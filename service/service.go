@@ -2,7 +2,6 @@ package main
 
 import (
 	"encoding/json"
-	"fmt"
 	"log"
 	"time"
 
@@ -18,8 +17,10 @@ import (
 	"github.com/YAWAL/GetMeConf/entitie"
 	"github.com/YAWAL/GetMeConf/repository"
 	"github.com/micro/go-micro/broker"
+	"github.com/micro/go-micro/server"
 	"github.com/patrickmn/go-cache"
 	"golang.org/x/net/context"
+	"gopkg.in/validator.v2"
 )
 
 var (
@@ -40,6 +41,12 @@ type configServer struct {
 	tempConfigRepo    repository.TempConfigRepo
 	tsConfigRepo      repository.TsConfigRepo
 	PubSub            broker.Broker
+}
+
+type serviceConfiguration struct {
+	port                 string
+	cacheExpirationTime  int
+	cacheCleanupInterval int
 }
 
 //GetConfigByName returns one config in GetConfigResponce message
@@ -145,6 +152,9 @@ func (s *configServer) CreateConfig(ctx context.Context, config *pb.Config, resp
 			log.Printf("unmarshal config err: %v", err)
 			return err
 		}
+		if err = validator.Validate(configStr); err != nil {
+			return err
+		}
 		responceStatus, err = s.mongoDBConfigRepo.Save(&configStr)
 		if err != nil {
 			return err
@@ -160,6 +170,9 @@ func (s *configServer) CreateConfig(ctx context.Context, config *pb.Config, resp
 			log.Printf("unmarshal config err: %v", err)
 			return err
 		}
+		if err = validator.Validate(configStr); err != nil {
+			return err
+		}
 		responceStatus, err = s.tempConfigRepo.Save(&configStr)
 		if err != nil {
 			return err
@@ -173,6 +186,9 @@ func (s *configServer) CreateConfig(ctx context.Context, config *pb.Config, resp
 		err := json.Unmarshal(config.Config, &configStr)
 		if err != nil {
 			log.Printf("unmarshal config err: %v", err)
+			return err
+		}
+		if err = validator.Validate(configStr); err != nil {
 			return err
 		}
 		responceStatus, err = s.tsConfigRepo.Save(&configStr)
@@ -232,6 +248,9 @@ func (s *configServer) UpdateConfig(ctx context.Context, config *pb.Config, resp
 			log.Printf("unmarshal config err: %v", err)
 			return err
 		}
+		if err = validator.Validate(configStr); err != nil {
+			return err
+		}
 		status, err = s.mongoDBConfigRepo.Update(&configStr)
 		if err != nil {
 			return err
@@ -243,6 +262,9 @@ func (s *configServer) UpdateConfig(ctx context.Context, config *pb.Config, resp
 			log.Printf("unmarshal config err: %v", err)
 			return err
 		}
+		if err = validator.Validate(configStr); err != nil {
+			return err
+		}
 		status, err = s.tempConfigRepo.Update(&configStr)
 		if err != nil {
 			return err
@@ -252,6 +274,9 @@ func (s *configServer) UpdateConfig(ctx context.Context, config *pb.Config, resp
 		err := json.Unmarshal(config.Config, &configStr)
 		if err != nil {
 			log.Printf("unmarshal config err: %v", err)
+			return err
+		}
+		if err = validator.Validate(configStr); err != nil {
 			return err
 		}
 		status, err = s.tsConfigRepo.Update(&configStr)
@@ -267,13 +292,7 @@ func (s *configServer) UpdateConfig(ctx context.Context, config *pb.Config, resp
 	return nil
 }
 
-func main() {
-
-	//port := os.Getenv("SERVICE_PORT")
-	//if port == "" {
-	//	log.Println("error during reading env. variable, default value is used")
-	//	port = defaultPort
-	//}
+func initServiceConfiguration() *serviceConfiguration {
 	cacheExpirationTime, err := strconv.Atoi(os.Getenv("CACHE_EXPIRATION_TIME"))
 	if err != nil {
 		log.Printf("error during reading env. variable: %v, default value is used", err)
@@ -284,30 +303,32 @@ func main() {
 		log.Printf("error during reading env. variable: %v, default value is used", err)
 		cacheCleanupInterval = defaultCacheCleanupInterval
 	}
+	return &serviceConfiguration{cacheCleanupInterval: cacheCleanupInterval, cacheExpirationTime: cacheExpirationTime}
+}
 
+func main() {
+
+	serviceConfiguration := initServiceConfiguration()
 	dbConn, err := repository.InitPostgresDB()
 	if err != nil {
 		log.Fatalf("failed to init postgres db: %v", err)
 	}
-
 	mongoDBRepo := repository.MongoDBConfigRepoImpl{DB: dbConn}
 	tsConfigRepo := repository.TsConfigRepoImpl{DB: dbConn}
 	tempConfigRepo := repository.TempConfigRepoImpl{DB: dbConn}
-
-	//log.Printf("server started at :%s", port)
 
 	srv := micro.NewService(
 		micro.Name("api"),
 		micro.Version("latest"),
 	)
 
-	srv.Init()
+	srv.Server().Init(server.Wait(true))
 
-	configCache := cache.New(time.Duration(cacheExpirationTime)*time.Minute, time.Duration(cacheCleanupInterval)*time.Minute)
+	configCache := cache.New(time.Duration(serviceConfiguration.cacheExpirationTime)*time.Minute, time.Duration(serviceConfiguration.cacheCleanupInterval)*time.Minute)
 
 	pb.RegisterConfigServiceHandler(srv.Server(), &configServer{configCache: configCache, mongoDBConfigRepo: &mongoDBRepo, tsConfigRepo: &tsConfigRepo, tempConfigRepo: &tempConfigRepo})
 
 	if err := srv.Run(); err != nil {
-		fmt.Println(err)
+		log.Println(err)
 	}
 }

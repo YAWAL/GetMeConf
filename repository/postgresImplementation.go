@@ -120,8 +120,7 @@ func (c *postgresConfig) validate() {
 	}
 }
 
-//InitPostgresDB initiates database connection using environmental variables
-func InitPostgresDB() (db *gorm.DB, err error) {
+func initPostgresConfig() *postgresConfig {
 	c := new(postgresConfig)
 	c.dbSchema = os.Getenv("PDB_SCHEME")
 	c.dbHost = os.Getenv("PDB_HOST")
@@ -129,6 +128,7 @@ func InitPostgresDB() (db *gorm.DB, err error) {
 	c.dbUser = os.Getenv("PDB_USER")
 	c.dbPassword = os.Getenv("PDB_PASSWORD")
 	c.dbName = os.Getenv("PDB_NAME")
+	var err error
 	c.maxOpenedConnectionsToDb, err = strconv.Atoi(os.Getenv("MAX_OPENED_CONNECTIONS_TO_DB"))
 	if err != nil {
 		log.Printf("error during reading env. variable: %v, default value is used", err)
@@ -144,9 +144,15 @@ func InitPostgresDB() (db *gorm.DB, err error) {
 		log.Printf("error during reading env. variable: %v, default value is used", err)
 		c.mbConnMaxLifetimeMinutes = 0
 	}
+	return c
+}
+
+//InitPostgresDB initiates database connection using environmental variables
+func InitPostgresDB() (db *gorm.DB, err error) {
+	c := initPostgresConfig()
 	c.validate()
 	dbInf := url.URL{Scheme: c.dbSchema, User: url.UserPassword(c.dbUser, c.dbPassword), Host: c.dbHost + ":" + c.dbPort, Path: c.dbName}
-	db, err = gorm.Open("postgres", dbInf.String())
+	db, err = gorm.Open("postgres", dbInf.String()+"?sslmode=disable")
 
 	if err != nil {
 		log.Printf("error during connection to postgres database has occurred: %v", err)
