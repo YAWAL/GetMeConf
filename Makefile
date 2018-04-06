@@ -29,6 +29,25 @@ tests:
 	go test ./service
 	go test ./repository
 
+race:
+	echo "Race tests"
+	go test ./service -race
+	go test ./repository -race
+
 docker-build:
 	docker run --net=${DOCKER_NET_DRIVER} -d consul && \
-	docker build -t configservice . && docker run --net=${DOCKER_NET_DRIVER} -p ${SERVICE_PORT}:${SERVICE_PORT} --env-file .env configservice
+	CC=$(which musl-gcc) go build --ldflags '-w -linkmode external -extldflags "-static"' -o ${GOPATH}/src/github.com/YAWAL/GetMeConf/bin/service ./service && \
+	docker build -t configservice . && \
+	docker run --net=${DOCKER_NET_DRIVER} -p ${SERVICE_PORT}:${SERVICE_PORT} --env-file .env configservice
+
+clean:
+	echo "Removing previous build"
+	rm -rf ${GOPATH}/src/github.com/YAWAL/GetMeConf/bin/service
+
+coverage:
+	echo "Test coverage"
+	./tools/coverage.sh;
+
+coveragehtml:
+	echo "Test coverage"
+	./tools/coverage.sh html;

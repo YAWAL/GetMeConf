@@ -316,7 +316,7 @@ func TestGetConfigsByType(t *testing.T) {
 func TestInitServiceConfiguration(t *testing.T) {
 	os.Setenv("CACHE_EXPIRATION_TIME", "test")
 	os.Setenv("CACHE_CLEANUP_INTERVAL", "test")
-	expectedOut := serviceConfiguration{cacheExpirationTime: defaultCacheExpirationTime, cacheCleanupInterval: defaultCacheCleanupInterval}
+	expectedOut := serviceConfiguration{port: "", cacheExpirationTime: defaultCacheExpirationTime, cacheCleanupInterval: defaultCacheCleanupInterval}
 	realOutput := initServiceConfiguration()
 	assert.Equal(t, &expectedOut, realOutput)
 }
