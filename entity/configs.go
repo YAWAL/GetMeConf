@@ -1,5 +1,5 @@
-// Package entitie contains database entities
-package entitie
+// Package entity contains database entities
+package entity
 
 //Mongodb is an random config example
 type Mongodb struct {
@@ -14,7 +14,7 @@ type Tsconfig struct {
 	Module    string `json:"module" validate:"nonzero"`
 	Target    string `json:"target" validate:"nonzero"`
 	SourceMap bool   `json:"sourceMap" validate:"regexp=^(true|false)$`
-	Excluding int    `json:"excluding" validate:"nonzero"`
+	Excluding int    `json:"excluding"`
 }
 
 //Tempconfig is an random config example

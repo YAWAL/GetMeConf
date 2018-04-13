@@ -1,9 +1,8 @@
-// Package repository contains repository interfaces as well as their implementations for given databases
+// Package repository contains repository interfaces as well as their implementations for given databases.
 package repository
 
 import (
 	"fmt"
-	"log"
 	"strconv"
 
 	"time"
@@ -14,10 +13,23 @@ import (
 
 	"net/url"
 
-	"github.com/YAWAL/GetMeConf/entitie"
+	"github.com/YAWAL/GetMeConf/entity"
 	"github.com/jinzhu/gorm"
 	_ "github.com/lib/pq"
+	"go.uber.org/zap"
 	"gopkg.in/gormigrate.v1"
+)
+
+const (
+	pdbScheme           = "PDB_SCHEME"
+	pdbHost             = "PDB_HOST"
+	pdbPort             = "PDB_PORT"
+	pdbUser             = "PDB_USER"
+	pdbPassword         = "PDB_PASSWORD"
+	pdbName             = "PDB_NAME"
+	maxOpCon            = "MAX_OPENED_CONNECTIONS_TO_DB"
+	maxIdleCon          = "MAX_IDLE_CONNECTIONS_TO_DB"
+	vConnMaxLifetimeMin = "MB_CONN_MAX_LIFETIME_MINUTES"
 )
 
 var (
@@ -32,7 +44,9 @@ var (
 	defaultmbConnMaxLifetimeMinutes = 30
 )
 
-//serviceConfig structure contains the configuration information for the database
+var logger *zap.Logger
+
+// ServiceConfig structure contains the configuration information for the database.
 type postgresConfig struct {
 	dbSchema                 string
 	dbHost                   string `yaml:"dbhost"`
@@ -45,36 +59,41 @@ type postgresConfig struct {
 	mbConnMaxLifetimeMinutes int    `yaml:"mbConnMaxLifetimeMinutes"`
 }
 
-//MongoDBConfigRepoImpl represents an implementation of a MongoDB configs repository
+// MongoDBConfigRepoImpl represents an implementation of a MongoDB configs repository.
 type MongoDBConfigRepoImpl struct {
 	DB *gorm.DB
 }
 
-//TsConfigRepoImpl represents an implementation of a Tsconfigs repository
+// TsConfigRepoImpl represents an implementation of a Tsconfigs repository.
 type TsConfigRepoImpl struct {
 	DB *gorm.DB
 }
 
-//TempConfigRepoImpl represents an implementation of a Tempconfigs repository
+// TempConfigRepoImpl represents an implementation of a Tempconfigs repository.
 type TempConfigRepoImpl struct {
 	DB *gorm.DB
 }
 
-//NewMongoDBConfigRepo returns a new MongoDB configs repository
+// InitZapLogger is used to set the logger for the package.
+func InitZapLogger(zlog *zap.Logger) {
+	logger = zlog
+}
+
+// NewMongoDBConfigRepo returns a new MongoDB configs repository.
 func NewMongoDBConfigRepo(db *gorm.DB) MongoDBConfigRepo {
 	return &MongoDBConfigRepoImpl{
 		DB: db,
 	}
 }
 
-//NewTempConfigRepo returns a new Tempconfigs repository
+// NewTempConfigRepo returns a new Tempconfigs repository.
 func NewTempConfigRepo(db *gorm.DB) TempConfigRepo {
 	return &TempConfigRepoImpl{
 		DB: db,
 	}
 }
 
-//NewTsConfigRepo returns a new TsConfig repository
+// NewTsConfigRepo returns a new TsConfig repository.
 func NewTsConfigRepo(db *gorm.DB) TsConfigRepo {
 	return &TsConfigRepoImpl{
 		DB: db,
@@ -83,96 +102,93 @@ func NewTsConfigRepo(db *gorm.DB) TsConfigRepo {
 
 func (c *postgresConfig) validate() {
 	if c.dbSchema == "" {
-		log.Println("error during reading env. variable, default value is used")
+		logger.Info("error during reading env. variable", zap.String("default value is used ", defaultDbScheme))
 		c.dbSchema = defaultDbScheme
 	}
 	if c.dbHost == "" {
-		log.Println("error during reading env. variable, default value is used")
+		logger.Info("error during reading env. variable", zap.String("default value is used ", defaultDbHost))
 		c.dbHost = defaultDbHost
 	}
 	if c.dbPort == "" {
-		log.Println("error during reading env. variable, default value is used")
+		logger.Info("error during reading env. variable", zap.String("default value is used ", defaultDbPort))
 		c.dbPort = defaultDbPort
 	}
 	if c.dbUser == "" {
-		log.Println("error during reading env. variable, default value is used")
+		logger.Info("error during reading env. variable", zap.String("default value is used ", defaultDbUser))
 		c.dbUser = defaultDbUser
 	}
 	if c.dbPassword == "" {
-		log.Println("error during reading env. variable, default value is used")
+		logger.Info("error during reading env. variable", zap.String("default value is used ", defaultDbPassword))
 		c.dbPassword = defaultDbPassword
 	}
 	if c.dbName == "" {
-		log.Println("error during reading env. variable, default value is used")
+		logger.Info("error during reading env. variable", zap.String("default value is used ", defaultDbName))
 		c.dbName = defaultDbName
 	}
 	if c.maxOpenedConnectionsToDb == 0 {
-		log.Printf("maxOpenedConnectionsToDb = 0, default value is used")
+		logger.Info("maxOpenedConnectionsToDb = 0", zap.Int("default value is used ", defaultMaxOpenedConnectionsToDb))
 		c.maxOpenedConnectionsToDb = defaultMaxOpenedConnectionsToDb
 	}
 	if c.maxIdleConnectionsToDb == 0 {
-		log.Printf("maxIdleConnectionsToDb = 0, default value is used")
+		logger.Info("maxIdleConnectionsToDb = 0", zap.Int("default value is used ", defaultMaxIdleConnectionsToDb))
 		c.maxIdleConnectionsToDb = defaultMaxIdleConnectionsToDb
 	}
 	if c.mbConnMaxLifetimeMinutes == 0 {
-		log.Printf("mbConnMaxLifetimeMinutes = 0, default value is used")
+		logger.Info("mbConnMaxLifetimeMinutes = 0", zap.Int("default value is used ", defaultmbConnMaxLifetimeMinutes))
 		c.mbConnMaxLifetimeMinutes = defaultmbConnMaxLifetimeMinutes
 	}
 }
 
 func initPostgresConfig() *postgresConfig {
 	c := new(postgresConfig)
-	c.dbSchema = os.Getenv("PDB_SCHEME")
-	c.dbHost = os.Getenv("PDB_HOST")
-	c.dbPort = os.Getenv("PDB_PORT")
-	c.dbUser = os.Getenv("PDB_USER")
-	c.dbPassword = os.Getenv("PDB_PASSWORD")
-	c.dbName = os.Getenv("PDB_NAME")
+	c.dbSchema = os.Getenv(pdbScheme)
+	c.dbHost = os.Getenv(pdbHost)
+	c.dbPort = os.Getenv(pdbPort)
+	c.dbUser = os.Getenv(pdbUser)
+	c.dbPassword = os.Getenv(pdbPassword)
+	c.dbName = os.Getenv(pdbName)
 	var err error
-	c.maxOpenedConnectionsToDb, err = strconv.Atoi(os.Getenv("MAX_OPENED_CONNECTIONS_TO_DB"))
+	c.maxOpenedConnectionsToDb, err = strconv.Atoi(os.Getenv(maxOpCon))
 	if err != nil {
-		log.Printf("error during reading env. variable: %v, default value is used", err)
-		c.maxOpenedConnectionsToDb = 0
+		logger.Info("error during reading env. variable. Could not convert from string to int", zap.Error(err))
 	}
-	c.maxIdleConnectionsToDb, err = strconv.Atoi(os.Getenv("MAX_IDLE_CONNECTIONS_TO_DB"))
+	c.maxIdleConnectionsToDb, err = strconv.Atoi(os.Getenv(maxIdleCon))
 	if err != nil {
-		log.Printf("error during reading env. variable: %v, default value is used", err)
-		c.maxIdleConnectionsToDb = 0
+		logger.Info("error during reading env. variable. Could not convert from string to int", zap.Error(err))
 	}
-	c.mbConnMaxLifetimeMinutes, err = strconv.Atoi(os.Getenv("MB_CONN_MAX_LIFETIME_MINUTES"))
+	c.mbConnMaxLifetimeMinutes, err = strconv.Atoi(os.Getenv(vConnMaxLifetimeMin))
 	if err != nil {
-		log.Printf("error during reading env. variable: %v, default value is used", err)
-		c.mbConnMaxLifetimeMinutes = 0
+		logger.Info("error during reading env. variable. Could not convert from string to int", zap.Error(err))
 	}
 	return c
 }
 
-//InitPostgresDB initiates database connection using environmental variables
+// InitPostgresDB initiates database connection using environmental variables.
 func InitPostgresDB() (db *gorm.DB, err error) {
-	c := initPostgresConfig()
-	c.validate()
-	dbInf := url.URL{Scheme: c.dbSchema, User: url.UserPassword(c.dbUser, c.dbPassword), Host: c.dbHost + ":" + c.dbPort, Path: c.dbName}
+	conf := initPostgresConfig()
+	conf.validate()
+	dbInf := url.URL{Scheme: conf.dbSchema, User: url.UserPassword(conf.dbUser, conf.dbPassword), Host: conf.dbHost + ":" + conf.dbPort, Path: conf.dbName}
 	db, err = gorm.Open("postgres", dbInf.String()+"?sslmode=disable")
 
 	if err != nil {
-		log.Printf("error during connection to postgres database has occurred: %v", err)
+		logger.Info("error during connection to postgres database has occurred", zap.Error(err))
 		return nil, err
 	}
 
-	db.DB().SetMaxOpenConns(c.maxOpenedConnectionsToDb)
-	db.DB().SetMaxIdleConns(c.maxIdleConnectionsToDb)
-	db.DB().SetConnMaxLifetime(time.Minute * time.Duration(c.mbConnMaxLifetimeMinutes))
-	log.Printf("connection to postgres database has been established")
+	db.DB().SetMaxOpenConns(conf.maxOpenedConnectionsToDb)
+	db.DB().SetMaxIdleConns(conf.maxIdleConnectionsToDb)
+	db.DB().SetConnMaxLifetime(time.Minute * time.Duration(conf.mbConnMaxLifetimeMinutes))
+	logger.Info("connection to postgres database has been established")
 
-	if err = gormMigrate(db); err != nil {
-		log.Printf("error during migration: %v", err)
+	if err = migrate(db); err != nil {
+		logger.Info("error during migration", zap.Error(err))
 		return nil, err
 	}
 
 	return db, nil
 }
 
-func gormMigrate(db *gorm.DB) error {
+func migrate(db *gorm.DB) error {
 	m := gormigrate.New(db, gormigrate.DefaultOptions, []*gormigrate.Migration{
 		{
 			ID: "Initial",
@@ -209,15 +225,15 @@ func gormMigrate(db *gorm.DB) error {
 
 	err := m.Migrate()
 	if err != nil {
-		log.Fatalf("could not migrate: %v", err)
+		logger.Info("could not migrate", zap.Error(err))
 	}
-	log.Printf("Migration did run successfully")
+	logger.Info("Migration did run successfully")
 	return err
 }
 
 //Find returns a config record from database using the unique name
-func (r *MongoDBConfigRepoImpl) Find(configName string) (*entitie.Mongodb, error) {
-	result := entitie.Mongodb{}
+func (r *MongoDBConfigRepoImpl) Find(configName string) (*entity.Mongodb, error) {
+	result := entity.Mongodb{}
 	err := r.DB.Where("domain = ?", configName).Find(&result).Error
 	if err != nil {
 		return nil, err
@@ -226,8 +242,8 @@ func (r *MongoDBConfigRepoImpl) Find(configName string) (*entitie.Mongodb, error
 }
 
 //FindAll returns all config record of one type from database
-func (r *MongoDBConfigRepoImpl) FindAll() ([]entitie.Mongodb, error) {
-	var confSlice []entitie.Mongodb
+func (r *MongoDBConfigRepoImpl) FindAll() ([]entity.Mongodb, error) {
+	var confSlice []entity.Mongodb
 	err := r.DB.Find(&confSlice).Error
 	if err != nil {
 		return nil, err
@@ -236,10 +252,10 @@ func (r *MongoDBConfigRepoImpl) FindAll() ([]entitie.Mongodb, error) {
 }
 
 //Save saves new config record to the database
-func (r *MongoDBConfigRepoImpl) Save(config *entitie.Mongodb) (string, error) {
+func (r *MongoDBConfigRepoImpl) Save(config *entity.Mongodb) (string, error) {
 	err := r.DB.Create(config).Error
 	if err != nil {
-		log.Printf("error during saving to database: %v", err)
+		logger.Info("error during saving to database", zap.Error(err))
 		return "", err
 	}
 	return "OK", nil
@@ -247,7 +263,7 @@ func (r *MongoDBConfigRepoImpl) Save(config *entitie.Mongodb) (string, error) {
 
 //Delete removes config record from database
 func (r *MongoDBConfigRepoImpl) Delete(configName string) (string, error) {
-	rowsAffected := r.DB.Delete(entitie.Mongodb{}, "domain = ?", configName).RowsAffected
+	rowsAffected := r.DB.Delete(entity.Mongodb{}, "domain = ?", configName).RowsAffected
 	if rowsAffected < 1 {
 		return "", errors.New("could not delete from database")
 	}
@@ -255,8 +271,8 @@ func (r *MongoDBConfigRepoImpl) Delete(configName string) (string, error) {
 }
 
 //Update updates a record in database, rewriting the fields if string fields are not empty
-func (r *MongoDBConfigRepoImpl) Update(newConfig *entitie.Mongodb) (string, error) {
-	var persistedConfig entitie.Mongodb
+func (r *MongoDBConfigRepoImpl) Update(newConfig *entity.Mongodb) (string, error) {
+	var persistedConfig entity.Mongodb
 	err := r.DB.Where("domain = ?", newConfig.Domain).Find(&persistedConfig).Error
 	if err != nil {
 		return "", err
@@ -264,7 +280,7 @@ func (r *MongoDBConfigRepoImpl) Update(newConfig *entitie.Mongodb) (string, erro
 	if newConfig.Host != "" && newConfig.Port != "" {
 		err = r.DB.Exec("UPDATE mongodbs SET mongodb = ?, port = ?, host = ? WHERE domain = ?", strconv.FormatBool(newConfig.Mongodb), newConfig.Port, newConfig.Host, persistedConfig.Domain).Error
 		if err != nil {
-			log.Printf("error during saving to database: %v", err)
+			logger.Info("error during updating", zap.Error(err))
 			return "", err
 		}
 		return "OK", nil
@@ -273,8 +289,8 @@ func (r *MongoDBConfigRepoImpl) Update(newConfig *entitie.Mongodb) (string, erro
 }
 
 //Find returns a config record from database using the unique name
-func (r *TempConfigRepoImpl) Find(configName string) (*entitie.Tempconfig, error) {
-	result := entitie.Tempconfig{}
+func (r *TempConfigRepoImpl) Find(configName string) (*entity.Tempconfig, error) {
+	result := entity.Tempconfig{}
 	err := r.DB.Where("rest_api_root = ?", configName).Find(&result).Error
 	if err != nil {
 		return nil, err
@@ -283,8 +299,8 @@ func (r *TempConfigRepoImpl) Find(configName string) (*entitie.Tempconfig, error
 }
 
 //FindAll returns all config record of one type from database
-func (r *TempConfigRepoImpl) FindAll() ([]entitie.Tempconfig, error) {
-	var confSlice []entitie.Tempconfig
+func (r *TempConfigRepoImpl) FindAll() ([]entity.Tempconfig, error) {
+	var confSlice []entity.Tempconfig
 	err := r.DB.Find(&confSlice).Error
 	if err != nil {
 		return nil, err
@@ -293,10 +309,10 @@ func (r *TempConfigRepoImpl) FindAll() ([]entitie.Tempconfig, error) {
 }
 
 //Save saves new config record to the database
-func (r *TempConfigRepoImpl) Save(config *entitie.Tempconfig) (string, error) {
+func (r *TempConfigRepoImpl) Save(config *entity.Tempconfig) (string, error) {
 	err := r.DB.Create(config).Error
 	if err != nil {
-		log.Printf("error during saving to database: %v", err)
+		logger.Info("error during saving to database", zap.Error(err))
 		return "", err
 	}
 	return "OK", nil
@@ -304,7 +320,7 @@ func (r *TempConfigRepoImpl) Save(config *entitie.Tempconfig) (string, error) {
 
 //Delete removes config record from database
 func (r *TempConfigRepoImpl) Delete(configName string) (string, error) {
-	rowsAffected := r.DB.Delete(entitie.Tempconfig{}, "rest_api_root = ?", configName).RowsAffected
+	rowsAffected := r.DB.Delete(entity.Tempconfig{}, "rest_api_root = ?", configName).RowsAffected
 	if rowsAffected < 1 {
 		return "", errors.New("could not delete from database")
 	}
@@ -312,8 +328,8 @@ func (r *TempConfigRepoImpl) Delete(configName string) (string, error) {
 }
 
 //Update updates a record in database, rewriting the fields if string fields are not empty
-func (r *TempConfigRepoImpl) Update(newConfig *entitie.Tempconfig) (string, error) {
-	var persistedConfig entitie.Tempconfig
+func (r *TempConfigRepoImpl) Update(newConfig *entity.Tempconfig) (string, error) {
+	var persistedConfig entity.Tempconfig
 	err := r.DB.Where("rest_api_root = ?", newConfig.RestApiRoot).Find(&persistedConfig).Error
 	if err != nil {
 		return "", err
@@ -321,7 +337,7 @@ func (r *TempConfigRepoImpl) Update(newConfig *entitie.Tempconfig) (string, erro
 	if newConfig.Host != "" && newConfig.Port != "" && newConfig.Remoting != "" {
 		err = r.DB.Exec("UPDATE tempconfigs SET remoting = ?, port = ?, host = ?, legasy_explorer = ? WHERE rest_api_root = ?", newConfig.Remoting, newConfig.Port, newConfig.Host, strconv.FormatBool(newConfig.LegasyExplorer), persistedConfig.RestApiRoot).Error
 		if err != nil {
-			log.Printf("error during saving to database: %v", err)
+			logger.Info("error during updating", zap.Error(err))
 			return "", err
 		}
 		return "OK", nil
@@ -330,8 +346,8 @@ func (r *TempConfigRepoImpl) Update(newConfig *entitie.Tempconfig) (string, erro
 }
 
 //Find returns a config record from database using the unique name
-func (r *TsConfigRepoImpl) Find(configName string) (*entitie.Tsconfig, error) {
-	result := entitie.Tsconfig{}
+func (r *TsConfigRepoImpl) Find(configName string) (*entity.Tsconfig, error) {
+	result := entity.Tsconfig{}
 	err := r.DB.Where("module = ?", configName).Find(&result).Error
 	if err != nil {
 		return nil, err
@@ -340,8 +356,8 @@ func (r *TsConfigRepoImpl) Find(configName string) (*entitie.Tsconfig, error) {
 }
 
 //FindAll returns all config record of one type from database
-func (r *TsConfigRepoImpl) FindAll() ([]entitie.Tsconfig, error) {
-	var confSlice []entitie.Tsconfig
+func (r *TsConfigRepoImpl) FindAll() ([]entity.Tsconfig, error) {
+	var confSlice []entity.Tsconfig
 	err := r.DB.Find(&confSlice).Error
 	if err != nil {
 		return nil, err
@@ -350,10 +366,10 @@ func (r *TsConfigRepoImpl) FindAll() ([]entitie.Tsconfig, error) {
 }
 
 //Save saves new config record to the database
-func (r *TsConfigRepoImpl) Save(config *entitie.Tsconfig) (string, error) {
+func (r *TsConfigRepoImpl) Save(config *entity.Tsconfig) (string, error) {
 	err := r.DB.Create(config).Error
 	if err != nil {
-		log.Printf("error during saving to database: %v", err)
+		logger.Info("error during saving to database", zap.Error(err))
 		return "", err
 	}
 	return "OK", nil
@@ -361,7 +377,7 @@ func (r *TsConfigRepoImpl) Save(config *entitie.Tsconfig) (string, error) {
 
 //Delete removes config record from database
 func (r *TsConfigRepoImpl) Delete(configName string) (string, error) {
-	rowsAffected := r.DB.Delete(entitie.Tsconfig{}, "module = ?", configName).RowsAffected
+	rowsAffected := r.DB.Delete(entity.Tsconfig{}, "module = ?", configName).RowsAffected
 	if rowsAffected < 1 {
 		return "", errors.New("could not delete from database")
 	}
@@ -369,8 +385,8 @@ func (r *TsConfigRepoImpl) Delete(configName string) (string, error) {
 }
 
 //Update updates a record in database, rewriting the fields if string fields are not empty
-func (r *TsConfigRepoImpl) Update(newConfig *entitie.Tsconfig) (string, error) {
-	var persistedConfig entitie.Tsconfig
+func (r *TsConfigRepoImpl) Update(newConfig *entity.Tsconfig) (string, error) {
+	var persistedConfig entity.Tsconfig
 	err := r.DB.Where("module = ?", newConfig.Module).Find(&persistedConfig).Error
 	if err != nil {
 		return "", err
@@ -378,7 +394,7 @@ func (r *TsConfigRepoImpl) Update(newConfig *entitie.Tsconfig) (string, error) {
 	if newConfig.Target != "" {
 		err = r.DB.Exec("UPDATE tsconfigs SET target = ?, source_map = ?, excluding = ? WHERE module = ?", newConfig.Target, strconv.FormatBool(newConfig.SourceMap), strconv.Itoa(newConfig.Excluding), persistedConfig.Module).Error
 		if err != nil {
-			log.Printf("error during saving to database: %v", err)
+			logger.Info("error during updating", zap.Error(err))
 			return "", err
 		}
 		return "OK", nil

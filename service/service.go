@@ -1,4 +1,4 @@
-package main
+package service
 
 import (
 	"encoding/json"
@@ -18,12 +18,23 @@ import (
 	"os/signal"
 	"syscall"
 
-	"github.com/YAWAL/GetMeConf/entitie"
+	"github.com/YAWAL/GetMeConf/entity"
 	"github.com/YAWAL/GetMeConf/repository"
 	"github.com/patrickmn/go-cache"
+	"go.uber.org/zap"
 	"golang.org/x/net/context"
 	"google.golang.org/grpc"
 	"gopkg.in/validator.v2"
+)
+
+const (
+	mongodb    = "mongodb"
+	tempconfig = "tempconfig"
+	tsconfig   = "tsconfig"
+
+	servicePort     = "SERVICE_PORT"
+	cacheExpTime    = "CACHE_EXPIRATION_TIME"
+	cacheCleanupInt = "CACHE_CLEANUP_INTERVAL"
 )
 
 var (
@@ -32,11 +43,7 @@ var (
 	defaultCacheCleanupInterval = 10
 )
 
-const (
-	mongodb    = "mongodb"
-	tempconfig = "tempconfig"
-	tsconfig   = "tsconfig"
-)
+var logger *zap.Logger
 
 type configServer struct {
 	configCache       *cache.Cache
@@ -59,7 +66,7 @@ func (s *configServer) GetConfigByName(ctx context.Context, nameRequest *pb.GetC
 		return configResponse.(*pb.GetConfigResponce), nil
 	}
 	var err error
-	var res entitie.ConfigInterface
+	var res entity.ConfigInterface
 
 	switch nameRequest.ConfigType {
 	case mongodb:
@@ -78,7 +85,7 @@ func (s *configServer) GetConfigByName(ctx context.Context, nameRequest *pb.GetC
 			return nil, err
 		}
 	default:
-		log.Print("unexpected type")
+		logger.Info("unexpected type", zap.String("Such config does not exist: ", nameRequest.ConfigType))
 		return nil, errors.New("unexpected type")
 	}
 	byteRes, err := json.Marshal(res)
@@ -136,7 +143,7 @@ func (s *configServer) GetConfigsByType(typeRequest *pb.GetConfigsByTypeRequest,
 			}
 		}
 	default:
-		log.Print("unexpected type")
+		logger.Info("unexpected type", zap.String("Such config does not exist: ", typeRequest.ConfigType))
 		return errors.New("unexpected type")
 	}
 	return nil
@@ -146,10 +153,10 @@ func (s *configServer) GetConfigsByType(typeRequest *pb.GetConfigsByTypeRequest,
 func (s *configServer) CreateConfig(ctx context.Context, config *pb.Config) (*pb.Responce, error) {
 	switch config.ConfigType {
 	case mongodb:
-		configStr := entitie.Mongodb{}
+		configStr := entity.Mongodb{}
 		err := json.Unmarshal(config.Config, &configStr)
 		if err != nil {
-			log.Printf("unmarshal config err: %v", err)
+			logger.Info("unmarshal config error", zap.Error(err))
 			return nil, err
 		}
 		if err = validator.Validate(configStr); err != nil {
@@ -163,10 +170,10 @@ func (s *configServer) CreateConfig(ctx context.Context, config *pb.Config) (*pb
 		return &pb.Responce{Status: response}, nil
 
 	case tempconfig:
-		configStr := entitie.Tempconfig{}
+		configStr := entity.Tempconfig{}
 		err := json.Unmarshal(config.Config, &configStr)
 		if err != nil {
-			log.Printf("unmarshal config err: %v", err)
+			logger.Info("unmarshal config error", zap.Error(err))
 			return nil, err
 		}
 		if err = validator.Validate(configStr); err != nil {
@@ -180,10 +187,10 @@ func (s *configServer) CreateConfig(ctx context.Context, config *pb.Config) (*pb
 		return &pb.Responce{Status: response}, nil
 
 	case tsconfig:
-		configStr := entitie.Tsconfig{}
+		configStr := entity.Tsconfig{}
 		err := json.Unmarshal(config.Config, &configStr)
 		if err != nil {
-			log.Printf("unmarshal config err: %v", err)
+			logger.Info("unmarshal config error", zap.Error(err))
 			return nil, err
 		}
 		if err = validator.Validate(configStr); err != nil {
@@ -196,7 +203,7 @@ func (s *configServer) CreateConfig(ctx context.Context, config *pb.Config) (*pb
 		s.configCache.Flush()
 		return &pb.Responce{Status: response}, nil
 	default:
-		log.Print("unexpected type")
+		logger.Info("unexpected type", zap.String("Such config does not exist: ", config.ConfigType))
 		return nil, errors.New("unexpected type")
 	}
 }
@@ -226,7 +233,7 @@ func (s *configServer) DeleteConfig(ctx context.Context, delConfigRequest *pb.De
 		s.configCache.Flush()
 		return &pb.Responce{Status: response}, nil
 	default:
-		log.Print("unexpected type")
+		logger.Info("unexpected type", zap.String("Such config does not exist: ", delConfigRequest.ConfigType))
 		return nil, errors.New("unexpected type")
 	}
 }
@@ -236,10 +243,10 @@ func (s *configServer) UpdateConfig(ctx context.Context, config *pb.Config) (*pb
 	var status string
 	switch config.ConfigType {
 	case mongodb:
-		configStr := entitie.Mongodb{}
+		configStr := entity.Mongodb{}
 		err := json.Unmarshal(config.Config, &configStr)
 		if err != nil {
-			log.Printf("unmarshal config err: %v", err)
+			logger.Info("unmarshal config error", zap.Error(err))
 			return nil, err
 		}
 		if err = validator.Validate(configStr); err != nil {
@@ -250,10 +257,10 @@ func (s *configServer) UpdateConfig(ctx context.Context, config *pb.Config) (*pb
 			return nil, err
 		}
 	case tempconfig:
-		configStr := entitie.Tempconfig{}
+		configStr := entity.Tempconfig{}
 		err := json.Unmarshal(config.Config, &configStr)
 		if err != nil {
-			log.Printf("unmarshal config err: %v", err)
+			logger.Info("unmarshal config error", zap.Error(err))
 			return nil, err
 		}
 		if err = validator.Validate(configStr); err != nil {
@@ -264,10 +271,10 @@ func (s *configServer) UpdateConfig(ctx context.Context, config *pb.Config) (*pb
 			return nil, err
 		}
 	case tsconfig:
-		configStr := entitie.Tsconfig{}
+		configStr := entity.Tsconfig{}
 		err := json.Unmarshal(config.Config, &configStr)
 		if err != nil {
-			log.Printf("unmarshal config err: %v", err)
+			logger.Info("unmarshal config error", zap.Error(err))
 			return nil, err
 		}
 		if err = validator.Validate(configStr); err != nil {
@@ -278,7 +285,7 @@ func (s *configServer) UpdateConfig(ctx context.Context, config *pb.Config) (*pb
 			return nil, err
 		}
 	default:
-		log.Print("unexpected type")
+		logger.Info("unexpected type", zap.String("Such config does not exist: ", config.ConfigType))
 		return nil, errors.New("unexpected type")
 	}
 	s.configCache.Flush()
@@ -286,30 +293,39 @@ func (s *configServer) UpdateConfig(ctx context.Context, config *pb.Config) (*pb
 }
 
 func initServiceConfiguration() *serviceConfiguration {
-	port := os.Getenv("SERVICE_PORT")
+	port := os.Getenv(servicePort)
 	if port == "" {
-		log.Println("error during reading env. variable, default value is used")
+		logger.Info("error during reading env. variable", zap.String("default value is used", defaultPort))
 		port = defaultPort
 	}
-	cacheExpirationTime, err := strconv.Atoi(os.Getenv("CACHE_EXPIRATION_TIME"))
+	cacheExpirationTime, err := strconv.Atoi(os.Getenv(cacheExpTime))
 	if err != nil {
-		log.Printf("error during reading env. variable: %v, default value is used", err)
+		logger.Info("error during reading env. variable", zap.Int("default value is used", defaultCacheExpirationTime))
 		cacheExpirationTime = defaultCacheExpirationTime
 	}
-	cacheCleanupInterval, err := strconv.Atoi(os.Getenv("CACHE_CLEANUP_INTERVAL"))
+	cacheCleanupInterval, err := strconv.Atoi(os.Getenv(cacheCleanupInt))
 	if err != nil {
-		log.Printf("error during reading env. variable: %v, default value is used", err)
+		logger.Info("error during reading env. variable", zap.Int("default value is used", defaultCacheCleanupInterval))
 		cacheCleanupInterval = defaultCacheCleanupInterval
 	}
 	return &serviceConfiguration{port: port, cacheCleanupInterval: cacheCleanupInterval, cacheExpirationTime: cacheExpirationTime}
 }
 
-func main() {
+// Run starts the service
+func Run() {
 
+	var err error
+	logger, err = zap.NewProduction()
+	if err != nil {
+		log.Printf("Error has occurred during logger initialization: %v", err)
+	}
+	defer logger.Sync()
 	serviceConfiguration := initServiceConfiguration()
+
+	repository.InitZapLogger(logger)
 	dbConn, err := repository.InitPostgresDB()
 	if err != nil {
-		log.Fatalf("failed to init postgres db: %v", err)
+		logger.Fatal("failed to init postgres db", zap.Error(err))
 	}
 	mongoDBRepo := repository.MongoDBConfigRepoImpl{DB: dbConn}
 	tsConfigRepo := repository.TsConfigRepoImpl{DB: dbConn}
@@ -317,10 +333,9 @@ func main() {
 
 	lis, err := net.Listen("tcp", fmt.Sprintf(":%s", serviceConfiguration.port))
 	if err != nil {
-		log.Fatalf("failed to listen: %v", err)
+		logger.Fatal("failed to listen", zap.Error(err))
 	}
-
-	log.Printf("server started at :%s", serviceConfiguration.port)
+	logger.Info("Server started at", zap.String("port", serviceConfiguration.port))
 
 	grpcServer := grpc.NewServer()
 
@@ -329,13 +344,13 @@ func main() {
 	pb.RegisterConfigServiceServer(grpcServer, &configServer{configCache: configCache, mongoDBConfigRepo: &mongoDBRepo, tsConfigRepo: &tsConfigRepo, tempConfigRepo: &tempConfigRepo})
 
 	go func() {
-		log.Fatal(grpcServer.Serve(lis))
+		logger.Fatal("failed to serve", zap.Error(grpcServer.Serve(lis)))
 	}()
 
 	signalChan := make(chan os.Signal, 1)
 	signal.Notify(signalChan, syscall.SIGINT, syscall.SIGTERM)
 	<-signalChan
 
-	log.Println("shotdown signal received, exiting")
+	logger.Info("shotdown signal received, exiting")
 	grpcServer.GracefulStop()
 }
