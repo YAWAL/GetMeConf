@@ -58,7 +58,7 @@ type serviceConfiguration struct {
 	cacheCleanupInterval int
 }
 
-//GetConfigByName returns one config in GetConfigResponce message
+// GetConfigByName returns one config in GetConfigResponce message.
 func (s *configServer) GetConfigByName(ctx context.Context, nameRequest *pb.GetConfigByNameRequest) (*pb.GetConfigResponce, error) {
 
 	configResponse, found := s.configCache.Get(nameRequest.ConfigName)
@@ -97,7 +97,7 @@ func (s *configServer) GetConfigByName(ctx context.Context, nameRequest *pb.GetC
 	return configResponse.(*pb.GetConfigResponce), nil
 }
 
-//GetConfigByName streams configs as GetConfigResponce messages
+// GetConfigByName streams configs as GetConfigResponce messages.
 func (s *configServer) GetConfigsByType(typeRequest *pb.GetConfigsByTypeRequest, stream pb.ConfigService_GetConfigsByTypeServer) error {
 	switch typeRequest.ConfigType {
 	case mongodb:
@@ -149,7 +149,7 @@ func (s *configServer) GetConfigsByType(typeRequest *pb.GetConfigsByTypeRequest,
 	return nil
 }
 
-//CreateConfig calls the function from database package to add a new config record to the database, returns response structure containing a status message
+// CreateConfig calls the function from database package to add a new config record to the database, returns response structure containing a status message.
 func (s *configServer) CreateConfig(ctx context.Context, config *pb.Config) (*pb.Responce, error) {
 	switch config.ConfigType {
 	case mongodb:
@@ -208,7 +208,7 @@ func (s *configServer) CreateConfig(ctx context.Context, config *pb.Config) (*pb
 	}
 }
 
-//DeleteConfig removes config records from the database. If successful, returns the amount of deleted records in a status message of the response structure
+// DeleteConfig removes config records from the database. If successful, returns the amount of deleted records in a status message of the response structure.
 func (s *configServer) DeleteConfig(ctx context.Context, delConfigRequest *pb.DeleteConfigRequest) (*pb.Responce, error) {
 	switch delConfigRequest.ConfigType {
 	case mongodb:
@@ -238,7 +238,7 @@ func (s *configServer) DeleteConfig(ctx context.Context, delConfigRequest *pb.De
 	}
 }
 
-//UpdateConfig updates a config stored in database
+// UpdateConfig updates a config stored in database.
 func (s *configServer) UpdateConfig(ctx context.Context, config *pb.Config) (*pb.Responce, error) {
 	var status string
 	switch config.ConfigType {
@@ -311,7 +311,7 @@ func initServiceConfiguration() *serviceConfiguration {
 	return &serviceConfiguration{port: port, cacheCleanupInterval: cacheCleanupInterval, cacheExpirationTime: cacheExpirationTime}
 }
 
-// Run starts the service
+// Run function starts the service.
 func Run() {
 
 	var err error
