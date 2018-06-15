@@ -59,6 +59,12 @@ type postgresConfig struct {
 	mbConnMaxLifetimeMinutes int    `yaml:"mbConnMaxLifetimeMinutes"`
 }
 
+type PostgresStorage struct {
+	mongoDBRepo *MongoDBConfigRepoImpl
+	tsRepo      *TsConfigRepoImpl
+	tempRepo    *TempConfigRepoImpl
+}
+
 // MongoDBConfigRepoImpl represents an implementation of a MongoDB configs repository.
 type MongoDBConfigRepoImpl struct {
 	DB *gorm.DB
@@ -77,6 +83,15 @@ type TempConfigRepoImpl struct {
 // InitZapLogger is used to set the logger for the package.
 func InitZapLogger(zlog *zap.Logger) {
 	logger = zlog
+}
+
+func CreatePostgresStorage() (*PostgresStorage, error) {
+	db, err := initPostgresDB()
+	return &PostgresStorage{
+		mongoDBRepo: &MongoDBConfigRepoImpl{DB: db},
+		tsRepo:      &TsConfigRepoImpl{DB: db},
+		tempRepo:    &TempConfigRepoImpl{DB: db},
+	}, err
 }
 
 // NewMongoDBConfigRepo returns a new MongoDB configs repository.
@@ -164,7 +179,7 @@ func initPostgresConfig() *postgresConfig {
 }
 
 // InitPostgresDB initiates database connection using environmental variables.
-func InitPostgresDB() (db *gorm.DB, err error) {
+func initPostgresDB() (db *gorm.DB, err error) {
 	conf := initPostgresConfig()
 	conf.validate()
 	dbInf := url.URL{Scheme: conf.dbSchema, User: url.UserPassword(conf.dbUser, conf.dbPassword), Host: conf.dbHost + ":" + conf.dbPort, Path: conf.dbName}
@@ -179,11 +194,6 @@ func InitPostgresDB() (db *gorm.DB, err error) {
 	db.DB().SetMaxIdleConns(conf.maxIdleConnectionsToDb)
 	db.DB().SetConnMaxLifetime(time.Minute * time.Duration(conf.mbConnMaxLifetimeMinutes))
 	logger.Info("connection to postgres database has been established")
-
-	if err = migrate(db); err != nil {
-		logger.Info("error during migration", zap.Error(err))
-		return nil, err
-	}
 
 	return db, nil
 }
