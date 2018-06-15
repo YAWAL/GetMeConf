@@ -3,21 +3,20 @@ package service
 import (
 	"context"
 	"encoding/json"
+	"os"
 
 	"testing"
 	"time"
 
 	pb "github.com/YAWAL/GetMeConfAPI/api"
+	validator "gopkg.in/validator.v2"
 
 	"errors"
-
-	"os"
 
 	"github.com/YAWAL/GetMeConf/entity"
 	"github.com/patrickmn/go-cache"
 	"github.com/stretchr/testify/assert"
 	"google.golang.org/grpc"
-	"gopkg.in/validator.v2"
 )
 
 const (
@@ -602,4 +601,28 @@ func TestUpdateConfig(t *testing.T) {
 	if assert.Error(t, err) {
 		assert.Equal(t, expError, err)
 	}
+}
+
+func BenchmarkCreateConfig(b *testing.B) {
+
+	configCache := cache.New(testDefaultExpirationTimeOfCacheMin*time.Minute, testCleanupInternalOfCacheMin*time.Minute)
+	mock := &mockConfigServer{}
+	mock.configCache = configCache
+	mock.mongoDBConfigRepo = &mockMongoDBConfigRepo{}
+	mock.tsConfigRepo = &mockTsConfigRepo{}
+	mock.tempConfigRepo = &mockTempConfigRepo{}
+
+	testConfMongo := entity.Mongodb{Domain: "testName", Mongodb: true, Host: "testHost", Port: "testPort"}
+	byteResMongo, err := json.Marshal(testConfMongo)
+	if err != nil {
+		b.Error("error during unit testing: ", err)
+	}
+	//b.ReportAllocs()
+	for i := 0; i < b.N; i++ {
+		_, err := mock.CreateConfig(context.Background(), &pb.Config{ConfigType: "mongodb", Config: byteResMongo})
+		if err != nil {
+			b.Error("error during unit testing: ", err)
+		}
+	}
+
 }

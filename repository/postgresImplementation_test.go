@@ -2,9 +2,8 @@
 package repository
 
 import (
-	"log"
-
 	"fmt"
+	"log"
 	"regexp"
 
 	"testing"
@@ -20,6 +19,7 @@ import (
 	"os"
 
 	"github.com/stretchr/testify/assert"
+	"go.uber.org/zap"
 	"gopkg.in/DATA-DOG/go-sqlmock.v1"
 )
 
@@ -43,6 +43,7 @@ func formatRequest(s string) string {
 }
 
 func TestValidate(t *testing.T) {
+	logger, _ = zap.NewProduction()
 	pcEmpty := postgresConfig{dbSchema: "", dbPort: "", dbHost: "", dbUser: "", dbPassword: "", dbName: "", maxOpenedConnectionsToDb: 0, maxIdleConnectionsToDb: 0, mbConnMaxLifetimeMinutes: 0}
 	pcEmpty.validate()
 	pcExp := postgresConfig{dbSchema: defaultDbScheme, dbPort: defaultDbPort, dbHost: defaultDbHost, dbUser: defaultDbUser, dbPassword: defaultDbPassword, dbName: defaultDbName, maxOpenedConnectionsToDb: defaultMaxOpenedConnectionsToDb, maxIdleConnectionsToDb: defaultMaxIdleConnectionsToDb, mbConnMaxLifetimeMinutes: defaultmbConnMaxLifetimeMinutes}
@@ -50,6 +51,7 @@ func TestValidate(t *testing.T) {
 }
 
 func TestInitPostgresConfig(t *testing.T) {
+	logger, _ = zap.NewProduction()
 	os.Setenv("PDB_SCHEME", "testSchema")
 	os.Setenv("PDB_HOST", "testHost")
 	os.Setenv("PDB_PORT", "testPort")
