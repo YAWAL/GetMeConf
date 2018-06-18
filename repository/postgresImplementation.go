@@ -2,67 +2,25 @@
 package repository
 
 import (
+	"errors"
 	"fmt"
 	"strconv"
-
 	"time"
-
-	"os"
-
-	"errors"
-
-	"net/url"
 
 	"github.com/YAWAL/GetMeConf/entity"
 	"github.com/jinzhu/gorm"
 	_ "github.com/lib/pq"
-	"go.uber.org/zap"
 	"gopkg.in/gormigrate.v1"
 )
 
-const (
-	pdbScheme           = "PDB_SCHEME"
-	pdbHost             = "PDB_HOST"
-	pdbPort             = "PDB_PORT"
-	pdbUser             = "PDB_USER"
-	pdbPassword         = "PDB_PASSWORD"
-	pdbName             = "PDB_NAME"
-	maxOpCon            = "MAX_OPENED_CONNECTIONS_TO_DB"
-	maxIdleCon          = "MAX_IDLE_CONNECTIONS_TO_DB"
-	vConnMaxLifetimeMin = "MB_CONN_MAX_LIFETIME_MINUTES"
-)
-
-var (
-	defaultDbScheme                 = "postgres"
-	defaultDbHost                   = "horton.elephantsql.com"
-	defaultDbPort                   = "5432"
-	defaultDbUser                   = "dlxifkbx"
-	defaultDbPassword               = "L7Cey-ucPY4L3T6VFlFdNykNE4jO0VjV"
-	defaultDbName                   = "dlxifkbx"
-	defaultMaxOpenedConnectionsToDb = 5
-	defaultMaxIdleConnectionsToDb   = 0
-	defaultmbConnMaxLifetimeMinutes = 30
-)
-
-var logger *zap.Logger
-
-// ServiceConfig structure contains the configuration information for the database.
-type postgresConfig struct {
-	dbSchema                 string
-	dbHost                   string `yaml:"dbhost"`
-	dbPort                   string `yaml:"dbport"`
-	dbUser                   string `yaml:"dbUser"`
-	dbPassword               string `yaml:"dbPassword"`
-	dbName                   string `yaml:"dbName"`
-	maxOpenedConnectionsToDb int    `yaml:"maxOpenedConnectionsToDb"`
-	maxIdleConnectionsToDb   int    `yaml:"maxIdleConnectionsToDb"`
-	mbConnMaxLifetimeMinutes int    `yaml:"mbConnMaxLifetimeMinutes"`
+type Storage interface {
+	Migrate(db *gorm.DB) error
 }
 
 type PostgresStorage struct {
-	mongoDBRepo *MongoDBConfigRepoImpl
-	tsRepo      *TsConfigRepoImpl
-	tempRepo    *TempConfigRepoImpl
+	MongoDBRepo *MongoDBConfigRepoImpl
+	TsRepo      *TsConfigRepoImpl
+	TempRepo    *TempConfigRepoImpl
 }
 
 // MongoDBConfigRepoImpl represents an implementation of a MongoDB configs repository.
@@ -80,17 +38,33 @@ type TempConfigRepoImpl struct {
 	DB *gorm.DB
 }
 
-// InitZapLogger is used to set the logger for the package.
-func InitZapLogger(zlog *zap.Logger) {
-	logger = zlog
+type PostgresConfig struct {
+	Shema                    string
+	DSN                      string
+	MaxOpenedConnectionsToDb int
+	MaxIdleConnectionsToDb   int
+	MbConnMaxLifetimeMinutes int
 }
 
-func CreatePostgresStorage() (*PostgresStorage, error) {
-	db, err := initPostgresDB()
+// InitPostgresDB initiates database connection using environmental variables.
+func initPostgresDB(conf *PostgresConfig) (db *gorm.DB, err error) {
+	db, err = gorm.Open(conf.Shema, conf.DSN)
+	if err != nil {
+		return nil, err
+	}
+	db.DB().SetMaxOpenConns(conf.MaxOpenedConnectionsToDb)
+	db.DB().SetMaxIdleConns(conf.MaxIdleConnectionsToDb)
+	db.DB().SetConnMaxLifetime(time.Minute * time.Duration(conf.MbConnMaxLifetimeMinutes))
+	return db, nil
+}
+
+// NewPostgresStorage returns a pointer to new PostgresStorage structure.
+func NewPostgresStorage(conf *PostgresConfig) (*PostgresStorage, error) {
+	db, err := initPostgresDB(conf)
 	return &PostgresStorage{
-		mongoDBRepo: &MongoDBConfigRepoImpl{DB: db},
-		tsRepo:      &TsConfigRepoImpl{DB: db},
-		tempRepo:    &TempConfigRepoImpl{DB: db},
+		MongoDBRepo: &MongoDBConfigRepoImpl{DB: db},
+		TsRepo:      &TsConfigRepoImpl{DB: db},
+		TempRepo:    &TempConfigRepoImpl{DB: db},
 	}, err
 }
 
@@ -115,90 +89,7 @@ func NewTsConfigRepo(db *gorm.DB) TsConfigRepo {
 	}
 }
 
-func (c *postgresConfig) validate() {
-	if c.dbSchema == "" {
-		logger.Info("error during reading env. variable", zap.String("default value is used ", defaultDbScheme))
-		c.dbSchema = defaultDbScheme
-	}
-	if c.dbHost == "" {
-		logger.Info("error during reading env. variable", zap.String("default value is used ", defaultDbHost))
-		c.dbHost = defaultDbHost
-	}
-	if c.dbPort == "" {
-		logger.Info("error during reading env. variable", zap.String("default value is used ", defaultDbPort))
-		c.dbPort = defaultDbPort
-	}
-	if c.dbUser == "" {
-		logger.Info("error during reading env. variable", zap.String("default value is used ", defaultDbUser))
-		c.dbUser = defaultDbUser
-	}
-	if c.dbPassword == "" {
-		logger.Info("error during reading env. variable", zap.String("default value is used ", defaultDbPassword))
-		c.dbPassword = defaultDbPassword
-	}
-	if c.dbName == "" {
-		logger.Info("error during reading env. variable", zap.String("default value is used ", defaultDbName))
-		c.dbName = defaultDbName
-	}
-	if c.maxOpenedConnectionsToDb == 0 {
-		logger.Info("maxOpenedConnectionsToDb = 0", zap.Int("default value is used ", defaultMaxOpenedConnectionsToDb))
-		c.maxOpenedConnectionsToDb = defaultMaxOpenedConnectionsToDb
-	}
-	if c.maxIdleConnectionsToDb == 0 {
-		logger.Info("maxIdleConnectionsToDb = 0", zap.Int("default value is used ", defaultMaxIdleConnectionsToDb))
-		c.maxIdleConnectionsToDb = defaultMaxIdleConnectionsToDb
-	}
-	if c.mbConnMaxLifetimeMinutes == 0 {
-		logger.Info("mbConnMaxLifetimeMinutes = 0", zap.Int("default value is used ", defaultmbConnMaxLifetimeMinutes))
-		c.mbConnMaxLifetimeMinutes = defaultmbConnMaxLifetimeMinutes
-	}
-}
-
-func initPostgresConfig() *postgresConfig {
-	c := new(postgresConfig)
-	c.dbSchema = os.Getenv(pdbScheme)
-	c.dbHost = os.Getenv(pdbHost)
-	c.dbPort = os.Getenv(pdbPort)
-	c.dbUser = os.Getenv(pdbUser)
-	c.dbPassword = os.Getenv(pdbPassword)
-	c.dbName = os.Getenv(pdbName)
-	var err error
-	c.maxOpenedConnectionsToDb, err = strconv.Atoi(os.Getenv(maxOpCon))
-	if err != nil {
-		logger.Info("error during reading env. variable. Could not convert from string to int", zap.Error(err))
-	}
-	c.maxIdleConnectionsToDb, err = strconv.Atoi(os.Getenv(maxIdleCon))
-	if err != nil {
-		logger.Info("error during reading env. variable. Could not convert from string to int", zap.Error(err))
-	}
-	c.mbConnMaxLifetimeMinutes, err = strconv.Atoi(os.Getenv(vConnMaxLifetimeMin))
-	if err != nil {
-		logger.Info("error during reading env. variable. Could not convert from string to int", zap.Error(err))
-	}
-	return c
-}
-
-// InitPostgresDB initiates database connection using environmental variables.
-func initPostgresDB() (db *gorm.DB, err error) {
-	conf := initPostgresConfig()
-	conf.validate()
-	dbInf := url.URL{Scheme: conf.dbSchema, User: url.UserPassword(conf.dbUser, conf.dbPassword), Host: conf.dbHost + ":" + conf.dbPort, Path: conf.dbName}
-	db, err = gorm.Open("postgres", dbInf.String()+"?sslmode=disable")
-
-	if err != nil {
-		logger.Info("error during connection to postgres database has occurred", zap.Error(err))
-		return nil, err
-	}
-
-	db.DB().SetMaxOpenConns(conf.maxOpenedConnectionsToDb)
-	db.DB().SetMaxIdleConns(conf.maxIdleConnectionsToDb)
-	db.DB().SetConnMaxLifetime(time.Minute * time.Duration(conf.mbConnMaxLifetimeMinutes))
-	logger.Info("connection to postgres database has been established")
-
-	return db, nil
-}
-
-func migrate(db *gorm.DB) error {
+func (s *PostgresStorage) Migrate(db *gorm.DB) error {
 	m := gormigrate.New(db, gormigrate.DefaultOptions, []*gormigrate.Migration{
 		{
 			ID: "Initial",
@@ -235,9 +126,8 @@ func migrate(db *gorm.DB) error {
 
 	err := m.Migrate()
 	if err != nil {
-		logger.Info("could not migrate", zap.Error(err))
+		return err
 	}
-	logger.Info("Migration did run successfully")
 	return err
 }
 
@@ -265,7 +155,6 @@ func (r *MongoDBConfigRepoImpl) FindAll() ([]entity.Mongodb, error) {
 func (r *MongoDBConfigRepoImpl) Save(config *entity.Mongodb) (string, error) {
 	err := r.DB.Create(config).Error
 	if err != nil {
-		logger.Info("error during saving to database", zap.Error(err))
 		return "", err
 	}
 	return "OK", nil
@@ -290,7 +179,6 @@ func (r *MongoDBConfigRepoImpl) Update(newConfig *entity.Mongodb) (string, error
 	if newConfig.Host != "" && newConfig.Port != "" {
 		err = r.DB.Exec("UPDATE mongodbs SET mongodb = ?, port = ?, host = ? WHERE domain = ?", strconv.FormatBool(newConfig.Mongodb), newConfig.Port, newConfig.Host, persistedConfig.Domain).Error
 		if err != nil {
-			logger.Info("error during updating", zap.Error(err))
 			return "", err
 		}
 		return "OK", nil
@@ -322,7 +210,6 @@ func (r *TempConfigRepoImpl) FindAll() ([]entity.Tempconfig, error) {
 func (r *TempConfigRepoImpl) Save(config *entity.Tempconfig) (string, error) {
 	err := r.DB.Create(config).Error
 	if err != nil {
-		logger.Info("error during saving to database", zap.Error(err))
 		return "", err
 	}
 	return "OK", nil
@@ -347,7 +234,6 @@ func (r *TempConfigRepoImpl) Update(newConfig *entity.Tempconfig) (string, error
 	if newConfig.Host != "" && newConfig.Port != "" && newConfig.Remoting != "" {
 		err = r.DB.Exec("UPDATE tempconfigs SET remoting = ?, port = ?, host = ?, legasy_explorer = ? WHERE rest_api_root = ?", newConfig.Remoting, newConfig.Port, newConfig.Host, strconv.FormatBool(newConfig.LegasyExplorer), persistedConfig.RestApiRoot).Error
 		if err != nil {
-			logger.Info("error during updating", zap.Error(err))
 			return "", err
 		}
 		return "OK", nil
@@ -379,7 +265,6 @@ func (r *TsConfigRepoImpl) FindAll() ([]entity.Tsconfig, error) {
 func (r *TsConfigRepoImpl) Save(config *entity.Tsconfig) (string, error) {
 	err := r.DB.Create(config).Error
 	if err != nil {
-		logger.Info("error during saving to database", zap.Error(err))
 		return "", err
 	}
 	return "OK", nil
@@ -404,7 +289,6 @@ func (r *TsConfigRepoImpl) Update(newConfig *entity.Tsconfig) (string, error) {
 	if newConfig.Target != "" {
 		err = r.DB.Exec("UPDATE tsconfigs SET target = ?, source_map = ?, excluding = ? WHERE module = ?", newConfig.Target, strconv.FormatBool(newConfig.SourceMap), strconv.Itoa(newConfig.Excluding), persistedConfig.Module).Error
 		if err != nil {
-			logger.Info("error during updating", zap.Error(err))
 			return "", err
 		}
 		return "OK", nil

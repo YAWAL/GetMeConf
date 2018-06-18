@@ -1,0 +1,29 @@
+{
+  "deadline": "3m",
+  "LineLength": 150,
+  "DisableAll": true,
+  "enable": [
+    "deadcode",
+    "errcheck",
+    "gas",
+    "goconst",
+    "gocyclo",
+    "gofmt",
+    "goimports",
+    "golint",
+    "ineffassign",
+    "interfacer",
+    "lll",
+    "megacheck",
+    "misspell",
+    "structcheck",
+    "unconvert",
+    "unparam",
+    "varcheck",
+    "vet"
+  ],
+  "Exclude": [
+    "proto/*",
+    "vendor/*"
+  ]
+}

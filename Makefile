@@ -1,5 +1,16 @@
+# force to use bash
+SHELL = /bin/bash
+
 include .env
 export
+
+RICHGO := $(shell PATH=$(GOPATH)/bin:$(PATH) command -v richgo 2> /dev/null)
+ifdef RICHGO
+GO := $(RICHGO)
+else
+$(shell GOPATH=$(GOPATH) go get -u github.com/kyoh86/richgo)
+GO := $(GOPATH)/bin/richgo
+endif
 
 all: dependencies build
 

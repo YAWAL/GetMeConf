@@ -1,36 +1,34 @@
 package service
 
 import (
-	"encoding/json"
 	"fmt"
 	"log"
 	"net"
-	"time"
-
-	"errors"
-
 	"os"
-
-	pb "github.com/YAWAL/GetMeConfAPI/api"
-
-	"strconv"
-
 	"os/signal"
+	"strconv"
 	"syscall"
 
-	"github.com/YAWAL/GetMeConf/entity"
 	"github.com/YAWAL/GetMeConf/repository"
-	"github.com/patrickmn/go-cache"
+	"github.com/YAWAL/GetMeConf/service/errortype"
+	"github.com/YAWAL/GetMeConf/usecase"
+	pb "github.com/YAWAL/GetMeConfAPI/api"
 	"go.uber.org/zap"
 	"golang.org/x/net/context"
 	"google.golang.org/grpc"
-	"gopkg.in/validator.v2"
 )
 
 const (
-	mongodb    = "mongodb"
-	tempconfig = "tempconfig"
-	tsconfig   = "tsconfig"
+	pdbScheme = "PDB_SCHEME"
+	pdbDSN    = "PDB_DSN"
+	//pdbHost             	= "PDB_HOST"
+	//pdbPort             	= "PDB_PORT"
+	//pdbUser             	= "PDB_USER"
+	//pdbPassword         	= "PDB_PASSWORD"
+	//pdbName             	= "PDB_NAME"
+	maxOpCon            = "MAX_OPENED_CONNECTIONS_TO_DB"
+	maxIdleCon          = "MAX_IDLE_CONNECTIONS_TO_DB"
+	vConnMaxLifetimeMin = "MB_CONN_MAX_LIFETIME_MINUTES"
 
 	servicePort     = "SERVICE_PORT"
 	cacheExpTime    = "CACHE_EXPIRATION_TIME"
@@ -38,310 +36,153 @@ const (
 )
 
 var (
+	defaultDbScheme   = "postgres"
+	defaultDbDSN      = "postgres://postgres:postgres@127.0.0.1:5432/postgres?sslmode=disable"
+	defaultDbHost     = "horton.elephantsql.com"
+	defaultDbPort     = "5432"
+	defaultDbUser     = "dlxifkbx"
+	defaultDbPassword = "L7Cey-ucPY4L3T6VFlFdNykNE4jO0VjV"
+	defaultDbName     = "dlxifkbx"
+
+	defaultMaxOpenedConnectionsToDb = 5
+	defaultMaxIdleConnectionsToDb   = 0
+	defaultmbConnMaxLifetimeMinutes = 30
+
 	defaultPort                 = "3000"
 	defaultCacheExpirationTime  = 5
 	defaultCacheCleanupInterval = 10
 )
 
-var logger *zap.Logger
+// ServiceConfig structure contains the configuration information for the database.
+//type postgresConfig struct {
+//	dbSchema                 string
+//	dbHost                   string `yaml:"dbhost"`
+//	dbPort                   string `yaml:"dbport"`
+//	dbUser                   string `yaml:"dbUser"`
+//	dbPassword               string `yaml:"dbPassword"`
+//	dbName                   string `yaml:"dbName"`
+//	maxOpenedConnectionsToDb int    `yaml:"maxOpenedConnectionsToDb"`
+//	maxIdleConnectionsToDb   int    `yaml:"maxIdleConnectionsToDb"`
+//	mbConnMaxLifetimeMinutes int    `yaml:"mbConnMaxLifetimeMinutes"`
+//}
 
-type configServer struct {
-	configCache       *cache.Cache
-	mongoDBConfigRepo repository.MongoDBConfigRepo
-	tempConfigRepo    repository.TempConfigRepo
-	tsConfigRepo      repository.TsConfigRepo
+type ConfigGRPCServer struct {
+	log          *zap.Logger
+	ctx          context.Context
+	configServer usecase.ConfigServer
 }
 
-type serviceConfiguration struct {
-	port                 string
-	cacheExpirationTime  int
-	cacheCleanupInterval int
+// NewConfigGRPCServer returns a new instance of ConfigGRPCServer
+func NewConfigGRPCServer(ctx context.Context, log *zap.Logger, cs usecase.ConfigServer) *ConfigGRPCServer {
+	return &ConfigGRPCServer{
+		ctx:          ctx,
+		configServer: cs,
+		log:          log.With(zap.String("config service", "SharedConfigHandler")),
+	}
 }
 
 // GetConfigByName returns one config in GetConfigResponce message.
-func (s *configServer) GetConfigByName(ctx context.Context, nameRequest *pb.GetConfigByNameRequest) (*pb.GetConfigResponce, error) {
-
-	configResponse, found := s.configCache.Get(nameRequest.ConfigName)
-	if found {
-		return configResponse.(*pb.GetConfigResponce), nil
-	}
-	var err error
-	var res entity.ConfigInterface
-
-	switch nameRequest.ConfigType {
-	case mongodb:
-		res, err = s.mongoDBConfigRepo.Find(nameRequest.ConfigName)
-		if err != nil {
-			return nil, err
-		}
-	case tempconfig:
-		res, err = s.tempConfigRepo.Find(nameRequest.ConfigName)
-		if err != nil {
-			return nil, err
-		}
-	case tsconfig:
-		res, err = s.tsConfigRepo.Find(nameRequest.ConfigName)
-		if err != nil {
-			return nil, err
-		}
-	default:
-		logger.Info("unexpected type", zap.String("Such config does not exist: ", nameRequest.ConfigType))
-		return nil, errors.New("unexpected type")
-	}
-	byteRes, err := json.Marshal(res)
+func (s *ConfigGRPCServer) GetConfigByName(ctx context.Context, nameRequest *pb.GetConfigByNameRequest) (*pb.GetConfigResponce, error) {
+	res, err := s.configServer.GetConfigByName(nameRequest.ConfigName, nameRequest.ConfigType)
 	if err != nil {
-		return nil, err
+		msg := "couldn't get config"
+		s.log.Error(err.Error(), zap.String("error", msg))
+		return nil, errortype.GrpcError(err, msg)
 	}
-	configResponse = &pb.GetConfigResponce{Config: byteRes}
-	s.configCache.Set(nameRequest.ConfigName, configResponse, cache.DefaultExpiration)
-	return configResponse.(*pb.GetConfigResponce), nil
+	return res, nil
 }
 
 // GetConfigByName streams configs as GetConfigResponce messages.
-func (s *configServer) GetConfigsByType(typeRequest *pb.GetConfigsByTypeRequest, stream pb.ConfigService_GetConfigsByTypeServer) error {
-	switch typeRequest.ConfigType {
-	case mongodb:
-		res, err := s.mongoDBConfigRepo.FindAll()
-		if err != nil {
-			return err
-		}
-		for _, v := range res {
-			byteRes, err := json.Marshal(v)
-			if err != nil {
-				return err
-			}
-			if err = stream.Send(&pb.GetConfigResponce{Config: byteRes}); err != nil {
-				return err
-			}
-		}
-	case tempconfig:
-		res, err := s.tempConfigRepo.FindAll()
-		if err != nil {
-			return err
-		}
-		for _, v := range res {
-			byteRes, err := json.Marshal(v)
-			if err != nil {
-				return err
-			}
-			if err = stream.Send(&pb.GetConfigResponce{Config: byteRes}); err != nil {
-				return err
-			}
-		}
-	case tsconfig:
-		res, err := s.tsConfigRepo.FindAll()
-		if err != nil {
-			return err
-		}
-		for _, v := range res {
-			byteRes, err := json.Marshal(v)
-			if err != nil {
-				return err
-			}
-			if err = stream.Send(&pb.GetConfigResponce{Config: byteRes}); err != nil {
-				return err
-			}
-		}
-	default:
-		logger.Info("unexpected type", zap.String("Such config does not exist: ", typeRequest.ConfigType))
-		return errors.New("unexpected type")
+func (s *ConfigGRPCServer) GetConfigsByType(typeRequest *pb.GetConfigsByTypeRequest, stream pb.ConfigService_GetConfigsByTypeServer) error {
+	err := s.configServer.GetConfigsByType(typeRequest.ConfigType, stream)
+	if err != nil {
+		msg := "couldn't get configs"
+		s.log.Error(err.Error(), zap.String("error", msg))
+		return errortype.GrpcError(err, msg)
 	}
 	return nil
 }
 
 // CreateConfig calls the function from database package to add a new config record to the database, returns response structure containing a status message.
-func (s *configServer) CreateConfig(ctx context.Context, config *pb.Config) (*pb.Responce, error) {
-	switch config.ConfigType {
-	case mongodb:
-		configStr := entity.Mongodb{}
-		err := json.Unmarshal(config.Config, &configStr)
-		if err != nil {
-			logger.Info("unmarshal config error", zap.Error(err))
-			return nil, err
-		}
-		if err = validator.Validate(configStr); err != nil {
-			return nil, err
-		}
-		response, err := s.mongoDBConfigRepo.Save(&configStr)
-		if err != nil {
-			return nil, err
-		}
-		s.configCache.Flush()
-		return &pb.Responce{Status: response}, nil
-
-	case tempconfig:
-		configStr := entity.Tempconfig{}
-		err := json.Unmarshal(config.Config, &configStr)
-		if err != nil {
-			logger.Info("unmarshal config error", zap.Error(err))
-			return nil, err
-		}
-		if err = validator.Validate(configStr); err != nil {
-			return nil, err
-		}
-		response, err := s.tempConfigRepo.Save(&configStr)
-		if err != nil {
-			return nil, err
-		}
-		s.configCache.Flush()
-		return &pb.Responce{Status: response}, nil
-
-	case tsconfig:
-		configStr := entity.Tsconfig{}
-		err := json.Unmarshal(config.Config, &configStr)
-		if err != nil {
-			logger.Info("unmarshal config error", zap.Error(err))
-			return nil, err
-		}
-		if err = validator.Validate(configStr); err != nil {
-			return nil, err
-		}
-		response, err := s.tsConfigRepo.Save(&configStr)
-		if err != nil {
-			return nil, err
-		}
-		s.configCache.Flush()
-		return &pb.Responce{Status: response}, nil
-	default:
-		logger.Info("unexpected type", zap.String("Such config does not exist: ", config.ConfigType))
-		return nil, errors.New("unexpected type")
+func (s *ConfigGRPCServer) CreateConfig(ctx context.Context, config *pb.Config) (*pb.Responce, error) {
+	res, err := s.configServer.CreateConfig(config)
+	if err != nil {
+		msg := "couldn't create config"
+		s.log.Error(err.Error(), zap.String("error", msg))
+		return nil, errortype.GrpcError(err, msg)
 	}
+	return res, nil
 }
 
 // DeleteConfig removes config records from the database. If successful, returns the amount of deleted records in a status message of the response structure.
-func (s *configServer) DeleteConfig(ctx context.Context, delConfigRequest *pb.DeleteConfigRequest) (*pb.Responce, error) {
-	switch delConfigRequest.ConfigType {
-	case mongodb:
-		response, err := s.mongoDBConfigRepo.Delete(delConfigRequest.ConfigName)
-		if err != nil {
-			return nil, err
-		}
-		s.configCache.Flush()
-		return &pb.Responce{Status: response}, nil
-	case tempconfig:
-		response, err := s.tempConfigRepo.Delete(delConfigRequest.ConfigName)
-		if err != nil {
-			return nil, err
-		}
-		s.configCache.Flush()
-		return &pb.Responce{Status: response}, nil
-	case tsconfig:
-		response, err := s.tsConfigRepo.Delete(delConfigRequest.ConfigName)
-		if err != nil {
-			return nil, err
-		}
-		s.configCache.Flush()
-		return &pb.Responce{Status: response}, nil
-	default:
-		logger.Info("unexpected type", zap.String("Such config does not exist: ", delConfigRequest.ConfigType))
-		return nil, errors.New("unexpected type")
+func (s *ConfigGRPCServer) DeleteConfig(ctx context.Context, delConfigRequest *pb.DeleteConfigRequest) (*pb.Responce, error) {
+	res, err := s.configServer.DeleteConfig(delConfigRequest)
+	if err != nil {
+		msg := "couldn't delete config"
+		s.log.Error(err.Error(), zap.String("error", msg))
+		return nil, errortype.GrpcError(err, msg)
 	}
+	return res, nil
 }
 
 // UpdateConfig updates a config stored in database.
-func (s *configServer) UpdateConfig(ctx context.Context, config *pb.Config) (*pb.Responce, error) {
-	var status string
-	switch config.ConfigType {
-	case mongodb:
-		configStr := entity.Mongodb{}
-		err := json.Unmarshal(config.Config, &configStr)
-		if err != nil {
-			logger.Info("unmarshal config error", zap.Error(err))
-			return nil, err
-		}
-		if err = validator.Validate(configStr); err != nil {
-			return nil, err
-		}
-		status, err = s.mongoDBConfigRepo.Update(&configStr)
-		if err != nil {
-			return nil, err
-		}
-	case tempconfig:
-		configStr := entity.Tempconfig{}
-		err := json.Unmarshal(config.Config, &configStr)
-		if err != nil {
-			logger.Info("unmarshal config error", zap.Error(err))
-			return nil, err
-		}
-		if err = validator.Validate(configStr); err != nil {
-			return nil, err
-		}
-		status, err = s.tempConfigRepo.Update(&configStr)
-		if err != nil {
-			return nil, err
-		}
-	case tsconfig:
-		configStr := entity.Tsconfig{}
-		err := json.Unmarshal(config.Config, &configStr)
-		if err != nil {
-			logger.Info("unmarshal config error", zap.Error(err))
-			return nil, err
-		}
-		if err = validator.Validate(configStr); err != nil {
-			return nil, err
-		}
-		status, err = s.tsConfigRepo.Update(&configStr)
-		if err != nil {
-			return nil, err
-		}
-	default:
-		logger.Info("unexpected type", zap.String("Such config does not exist: ", config.ConfigType))
-		return nil, errors.New("unexpected type")
+func (s *ConfigGRPCServer) UpdateConfig(ctx context.Context, config *pb.Config) (*pb.Responce, error) {
+	res, err := s.configServer.UpdateConfig(config)
+	if err != nil {
+		msg := "couldn't update config"
+		s.log.Error(err.Error(), zap.String("error", msg))
+		return nil, errortype.GrpcError(err, msg)
 	}
-	s.configCache.Flush()
-	return &pb.Responce{Status: status}, nil
+	return res, nil
 }
 
-func initServiceConfiguration() *serviceConfiguration {
+func initServiceConfiguration(logger *zap.Logger) *usecase.ServiceConfiguration {
 	port := os.Getenv(servicePort)
 	if port == "" {
 		logger.Info("error during reading env. variable", zap.String("default value is used", defaultPort))
 		port = defaultPort
 	}
-	cacheExpirationTime, err := strconv.Atoi(os.Getenv(cacheExpTime))
-	if err != nil {
-		logger.Info("error during reading env. variable", zap.Int("default value is used", defaultCacheExpirationTime))
-		cacheExpirationTime = defaultCacheExpirationTime
-	}
-	cacheCleanupInterval, err := strconv.Atoi(os.Getenv(cacheCleanupInt))
-	if err != nil {
-		logger.Info("error during reading env. variable", zap.Int("default value is used", defaultCacheCleanupInterval))
-		cacheCleanupInterval = defaultCacheCleanupInterval
-	}
-	return &serviceConfiguration{port: port, cacheCleanupInterval: cacheCleanupInterval, cacheExpirationTime: cacheExpirationTime}
+	cacheConfiguration := initCacheConfiguration(logger)
+	return &usecase.ServiceConfiguration{Port: port, CacheConf: cacheConfiguration}
 }
 
 // Run function starts the service.
 func Run() {
 
+	ctx, done := context.WithCancel(context.Background())
+	defer done()
+
 	var err error
-	logger, err = zap.NewProduction()
+	logger, err := zap.NewProduction()
 	if err != nil {
 		log.Printf("Error has occurred during logger initialization: %v", err)
 	}
 	defer logger.Sync()
-	serviceConfiguration := initServiceConfiguration()
 
-	repository.InitZapLogger(logger)
-	dbConn, err := repository.InitPostgresDB()
+	serviceConfiguration := initServiceConfiguration(logger)
+
+	postgresConfig := initPostgresConfig(logger)
+
+	postgresStorage, err := repository.NewPostgresStorage(postgresConfig)
 	if err != nil {
 		logger.Fatal("failed to init postgres db", zap.Error(err))
 	}
-	mongoDBRepo := repository.MongoDBConfigRepoImpl{DB: dbConn}
-	tsConfigRepo := repository.TsConfigRepoImpl{DB: dbConn}
-	tempConfigRepo := repository.TempConfigRepoImpl{DB: dbConn}
 
-	lis, err := net.Listen("tcp", fmt.Sprintf(":%s", serviceConfiguration.port))
+	postgresStorage.Migrate(postgresStorage.TempRepo.DB)
+
+	server := usecase.NewConfigServer(postgresStorage, serviceConfiguration)
+
+	grpcServ := NewConfigGRPCServer(ctx, logger, server)
+
+	lis, err := net.Listen("tcp", fmt.Sprintf(":%s", serviceConfiguration.Port))
 	if err != nil {
 		logger.Fatal("failed to listen", zap.Error(err))
 	}
-	logger.Info("Server started at", zap.String("port", serviceConfiguration.port))
+	logger.Info("Server started at", zap.String("port", serviceConfiguration.Port))
 
 	grpcServer := grpc.NewServer()
 
-	configCache := cache.New(time.Duration(serviceConfiguration.cacheExpirationTime)*time.Minute, time.Duration(serviceConfiguration.cacheCleanupInterval)*time.Minute)
-
-	pb.RegisterConfigServiceServer(grpcServer, &configServer{configCache: configCache, mongoDBConfigRepo: &mongoDBRepo, tsConfigRepo: &tsConfigRepo, tempConfigRepo: &tempConfigRepo})
+	pb.RegisterConfigServiceServer(grpcServer, grpcServ)
 
 	go func() {
 		logger.Fatal("failed to serve", zap.Error(grpcServer.Serve(lis)))
@@ -353,4 +194,90 @@ func Run() {
 
 	logger.Info("shotdown signal received, exiting")
 	grpcServer.GracefulStop()
+}
+
+func validatePostgresConfig(logger *zap.Logger, c *repository.PostgresConfig) {
+	if c.Shema == "" {
+		logger.Info("error during reading env. variable", zap.String("default value is used ", defaultDbScheme))
+		c.Shema = defaultDbScheme
+	}
+	if c.DSN == "" {
+		logger.Info("error during reading env. variable", zap.String("default value is used ", defaultDbDSN))
+		c.DSN = defaultDbDSN
+	}
+	//if c.dbHost == "" {
+	//	logger.Info("error during reading env. variable", zap.String("default value is used ", defaultDbHost))
+	//	c.dbHost = defaultDbHost
+	//}
+	//if c.dbPort == "" {
+	//	logger.Info("error during reading env. variable", zap.String("default value is used ", defaultDbPort))
+	//	c.dbPort = defaultDbPort
+	//}
+	//if c.dbUser == "" {
+	//	logger.Info("error during reading env. variable", zap.String("default value is used ", defaultDbUser))
+	//	c.dbUser = defaultDbUser
+	//}
+	//if c.dbPassword == "" {
+	//	logger.Info("error during reading env. variable", zap.String("default value is used ", defaultDbPassword))
+	//	c.dbPassword = defaultDbPassword
+	//}
+	//if c.dbName == "" {
+	//	logger.Info("error during reading env. variable", zap.String("default value is used ", defaultDbName))
+	//	c.dbName = defaultDbName
+	//}
+	if c.MaxOpenedConnectionsToDb == 0 {
+		logger.Info("maxOpenedConnectionsToDb = 0", zap.Int("default value is used ", defaultMaxOpenedConnectionsToDb))
+		c.MaxOpenedConnectionsToDb = defaultMaxOpenedConnectionsToDb
+	}
+	if c.MaxIdleConnectionsToDb == 0 {
+		logger.Info("maxIdleConnectionsToDb = 0", zap.Int("default value is used ", defaultMaxIdleConnectionsToDb))
+		c.MaxIdleConnectionsToDb = defaultMaxIdleConnectionsToDb
+	}
+	if c.MbConnMaxLifetimeMinutes == 0 {
+		logger.Info("mbConnMaxLifetimeMinutes = 0", zap.Int("default value is used ", defaultmbConnMaxLifetimeMinutes))
+		c.MbConnMaxLifetimeMinutes = defaultmbConnMaxLifetimeMinutes
+	}
+}
+
+func initPostgresConfig(logger *zap.Logger) *repository.PostgresConfig {
+	c := new(repository.PostgresConfig)
+	c.Shema = os.Getenv(pdbScheme)
+	c.DSN = os.Getenv(pdbDSN)
+	//c.dbHost = os.Getenv(pdbHost)
+	//c.dbPort = os.Getenv(pdbPort)
+	//c.dbUser = os.Getenv(pdbUser)
+	//c.dbPassword = os.Getenv(pdbPassword)
+	//c.dbName = os.Getenv(pdbName)
+	var err error
+	c.MaxOpenedConnectionsToDb, err = strconv.Atoi(os.Getenv(maxOpCon))
+	if err != nil {
+		logger.Info("error during reading env. variable. Could not convert from string to int", zap.Error(err))
+	}
+	c.MaxIdleConnectionsToDb, err = strconv.Atoi(os.Getenv(maxIdleCon))
+	if err != nil {
+		logger.Info("error during reading env. variable. Could not convert from string to int", zap.Error(err))
+	}
+	c.MbConnMaxLifetimeMinutes, err = strconv.Atoi(os.Getenv(vConnMaxLifetimeMin))
+	if err != nil {
+		logger.Info("error during reading env. variable. Could not convert from string to int", zap.Error(err))
+	}
+	validatePostgresConfig(logger, c)
+	return c
+}
+
+func initCacheConfiguration(logger *zap.Logger) *usecase.CacheConfiguration {
+	c := new(usecase.CacheConfiguration)
+	cacheExpirationTime, err := strconv.Atoi(os.Getenv(cacheExpTime))
+	if err != nil {
+		logger.Info("error during reading env. variable", zap.Int("default value is used", defaultCacheExpirationTime))
+		cacheExpirationTime = defaultCacheExpirationTime
+	}
+	c.CacheExpirationTime = cacheExpirationTime
+	cacheCleanupInterval, err := strconv.Atoi(os.Getenv(cacheCleanupInt))
+	if err != nil {
+		logger.Info("error during reading env. variable", zap.Int("default value is used", defaultCacheCleanupInterval))
+		cacheCleanupInterval = defaultCacheCleanupInterval
+	}
+	c.CacheCleanupInterval = cacheCleanupInterval
+	return c
 }

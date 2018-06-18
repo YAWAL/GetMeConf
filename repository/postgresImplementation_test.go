@@ -2,22 +2,16 @@
 package repository
 
 import (
+	"errors"
 	"fmt"
 	"log"
+	"os"
 	"regexp"
-
+	"strconv"
 	"testing"
 
 	"github.com/YAWAL/GetMeConf/entity"
-
 	"github.com/jinzhu/gorm"
-
-	"errors"
-
-	"strconv"
-
-	"os"
-
 	"github.com/stretchr/testify/assert"
 	"go.uber.org/zap"
 	"gopkg.in/DATA-DOG/go-sqlmock.v1"
