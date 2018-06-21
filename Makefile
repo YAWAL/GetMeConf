@@ -43,6 +43,10 @@ race:
 	go test ./service -race
 	go test ./repository -race
 
+lint:
+	echo "Running linters"
+	gometalinter --vendor --tests --skip=mock --exclude='_gen.go' --deadline=1500s --checkstyle --sort=linter ./... > static-analysis.xml
+
 docker-build:
 	CC=$(which musl-gcc) go build --ldflags '-w -linkmode external -extldflags "-static"' -o ${GOPATH}/src/github.com/YAWAL/GetMeConf/bin/service . && \
 	docker build -t configservice . && \

@@ -30,7 +30,7 @@ type ConfigServer interface {
 
 type configServerImpl struct {
 	configCache *cache.Cache
-	repo        *repository.StoragePostgresStorage
+	repo        repository.Storage
 }
 
 type ServiceConfiguration struct {
@@ -44,7 +44,7 @@ type CacheConfiguration struct {
 }
 
 // NewSharedConfigInteractor constructs new SharedConfigInteractor
-func NewConfigServer(s *repository.PostgresStorage, sc *ServiceConfiguration) *configServerImpl {
+func NewConfigServer(s repository.Storage, sc *ServiceConfiguration) *configServerImpl {
 	//	repo, _ := repository.CreatePostgresStorage()
 	return &configServerImpl{
 		repo:        s,
@@ -67,20 +67,19 @@ func (s *configServerImpl) GetConfigByName(name, confType string) (*pb.GetConfig
 	}
 	var err error
 	var res entity.ConfigInterface
-
 	switch confType {
 	case mongodb:
-		res, err = s.repo.MongoDBRepo.Find(name)
+		res, err = s.repo.FindMongoDBConfig(name)
 		if err != nil {
 			return nil, err
 		}
 	case tempconfig:
-		res, err = s.repo.TempRepo.Find(name)
+		res, err = s.repo.FindTempConfig(name)
 		if err != nil {
 			return nil, err
 		}
 	case tsconfig:
-		res, err = s.repo.TsRepo.Find(name)
+		res, err = s.repo.FindTsConfig(name)
 		if err != nil {
 			return nil, err
 		}
@@ -100,7 +99,7 @@ func (s *configServerImpl) GetConfigByName(name, confType string) (*pb.GetConfig
 func (s *configServerImpl) GetConfigsByType(confType string, stream pb.ConfigService_GetConfigsByTypeServer) error {
 	switch confType {
 	case mongodb:
-		res, err := s.repo.MongoDBRepo.FindAll()
+		res, err := s.repo.FindAllMongoDBConfig()
 		if err != nil {
 			return err
 		}
@@ -114,7 +113,7 @@ func (s *configServerImpl) GetConfigsByType(confType string, stream pb.ConfigSer
 			}
 		}
 	case tempconfig:
-		res, err := s.repo.TempRepo.FindAll()
+		res, err := s.repo.FindAllTempConfig()
 		if err != nil {
 			return err
 		}
@@ -128,7 +127,7 @@ func (s *configServerImpl) GetConfigsByType(confType string, stream pb.ConfigSer
 			}
 		}
 	case tsconfig:
-		res, err := s.repo.TsRepo.FindAll()
+		res, err := s.repo.FindAllTsConfig()
 		if err != nil {
 			return err
 		}
@@ -159,7 +158,7 @@ func (s *configServerImpl) CreateConfig(config *pb.Config) (*pb.Responce, error)
 		if err = validator.Validate(configStr); err != nil {
 			return nil, err
 		}
-		response, err := s.repo.MongoDBRepo.Save(&configStr)
+		response, err := s.repo.SaveMongoDBConfig(&configStr)
 		if err != nil {
 			return nil, err
 		}
@@ -175,7 +174,7 @@ func (s *configServerImpl) CreateConfig(config *pb.Config) (*pb.Responce, error)
 		if err = validator.Validate(configStr); err != nil {
 			return nil, err
 		}
-		response, err := s.repo.TempRepo.Save(&configStr)
+		response, err := s.repo.SaveTempConfig(&configStr)
 		if err != nil {
 			return nil, err
 		}
@@ -191,7 +190,7 @@ func (s *configServerImpl) CreateConfig(config *pb.Config) (*pb.Responce, error)
 		if err = validator.Validate(configStr); err != nil {
 			return nil, err
 		}
-		response, err := s.repo.TsRepo.Save(&configStr)
+		response, err := s.repo.SaveTsConfig(&configStr)
 		if err != nil {
 			return nil, err
 		}
@@ -206,21 +205,21 @@ func (s *configServerImpl) CreateConfig(config *pb.Config) (*pb.Responce, error)
 func (s *configServerImpl) DeleteConfig(delConfigRequest *pb.DeleteConfigRequest) (*pb.Responce, error) {
 	switch delConfigRequest.ConfigType {
 	case mongodb:
-		response, err := s.repo.MongoDBRepo.Delete(delConfigRequest.ConfigName)
+		response, err := s.repo.DeleteMongoDBConfig(delConfigRequest.ConfigName)
 		if err != nil {
 			return nil, err
 		}
 		s.configCache.Flush()
 		return &pb.Responce{Status: response}, nil
 	case tempconfig:
-		response, err := s.repo.TempRepo.Delete(delConfigRequest.ConfigName)
+		response, err := s.repo.DeleteTempConfig(delConfigRequest.ConfigName)
 		if err != nil {
 			return nil, err
 		}
 		s.configCache.Flush()
 		return &pb.Responce{Status: response}, nil
 	case tsconfig:
-		response, err := s.repo.TsRepo.Delete(delConfigRequest.ConfigName)
+		response, err := s.repo.DeleteTsConfig(delConfigRequest.ConfigName)
 		if err != nil {
 			return nil, err
 		}
@@ -244,7 +243,7 @@ func (s *configServerImpl) UpdateConfig(config *pb.Config) (*pb.Responce, error)
 		if err = validator.Validate(configStr); err != nil {
 			return nil, err
 		}
-		status, err = s.repo.MongoDBRepo.Update(&configStr)
+		status, err = s.repo.UpdateMongoDBConfig(&configStr)
 		if err != nil {
 			return nil, err
 		}
@@ -257,7 +256,7 @@ func (s *configServerImpl) UpdateConfig(config *pb.Config) (*pb.Responce, error)
 		if err = validator.Validate(configStr); err != nil {
 			return nil, err
 		}
-		status, err = s.repo.TempRepo.Update(&configStr)
+		status, err = s.repo.UpdateTempConfig(&configStr)
 		if err != nil {
 			return nil, err
 		}
@@ -270,7 +269,7 @@ func (s *configServerImpl) UpdateConfig(config *pb.Config) (*pb.Responce, error)
 		if err = validator.Validate(configStr); err != nil {
 			return nil, err
 		}
-		status, err = s.repo.TsRepo.Update(&configStr)
+		status, err = s.repo.UpdateTsConfig(&configStr)
 		if err != nil {
 			return nil, err
 		}

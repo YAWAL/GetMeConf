@@ -5,7 +5,6 @@ import (
 	"errors"
 	"fmt"
 	"log"
-	"os"
 	"regexp"
 	"strconv"
 	"testing"
@@ -16,6 +15,8 @@ import (
 	"go.uber.org/zap"
 	"gopkg.in/DATA-DOG/go-sqlmock.v1"
 )
+
+var logger, _ = zap.NewDevelopment()
 
 func newDB() (sqlmock.Sqlmock, *gorm.DB, error) {
 	db, mock, err := sqlmock.New()
@@ -36,64 +37,63 @@ func formatRequest(s string) string {
 	return fmt.Sprintf("^%s$", regexp.QuoteMeta(s))
 }
 
-func TestValidate(t *testing.T) {
-	logger, _ = zap.NewProduction()
-	pcEmpty := postgresConfig{dbSchema: "", dbPort: "", dbHost: "", dbUser: "", dbPassword: "", dbName: "", maxOpenedConnectionsToDb: 0, maxIdleConnectionsToDb: 0, mbConnMaxLifetimeMinutes: 0}
-	pcEmpty.validate()
-	pcExp := postgresConfig{dbSchema: defaultDbScheme, dbPort: defaultDbPort, dbHost: defaultDbHost, dbUser: defaultDbUser, dbPassword: defaultDbPassword, dbName: defaultDbName, maxOpenedConnectionsToDb: defaultMaxOpenedConnectionsToDb, maxIdleConnectionsToDb: defaultMaxIdleConnectionsToDb, mbConnMaxLifetimeMinutes: defaultmbConnMaxLifetimeMinutes}
-	assert.Equal(t, pcExp, pcEmpty)
-}
+//func TestValidate(t *testing.T) {
+//	pcEmpty := PostgresConfig{Shema: "", DSN: "", MaxOpenedConnectionsToDb: 0, MaxIdleConnectionsToDb: 0, MbConnMaxLifetimeMinutes: 0}
+//	pcEmpty.validate()
+//	pcExp := postgresConfig{dbSchema: defaultDbScheme, dbPort: defaultDbPort, dbHost: defaultDbHost, dbUser: defaultDbUser, dbPassword: defaultDbPassword, dbName: defaultDbName, maxOpenedConnectionsToDb: defaultMaxOpenedConnectionsToDb, maxIdleConnectionsToDb: defaultMaxIdleConnectionsToDb, mbConnMaxLifetimeMinutes: defaultmbConnMaxLifetimeMinutes}
+//	assert.Equal(t, pcExp, pcEmpty)
+//}
 
-func TestInitPostgresConfig(t *testing.T) {
-	logger, _ = zap.NewProduction()
-	os.Setenv("PDB_SCHEME", "testSchema")
-	os.Setenv("PDB_HOST", "testHost")
-	os.Setenv("PDB_PORT", "testPort")
-	os.Setenv("PDB_USER", "testUser")
-	os.Setenv("PDB_PASSWORD", "testPass")
-	os.Setenv("PDB_NAME", "testName")
-	os.Setenv("MAX_OPENED_CONNECTIONS_TO_DB", "test")
-	os.Setenv("MAX_IDLE_CONNECTIONS_TO_DB", "test")
-	os.Setenv("MB_CONN_MAX_LIFETIME_MINUTES", "test")
-	pcInit := initPostgresConfig()
-	pcExp := postgresConfig{dbSchema: "testSchema", dbPort: "testPort", dbHost: "testHost", dbUser: "testUser", dbPassword: "testPass", dbName: "testName", maxOpenedConnectionsToDb: 0, maxIdleConnectionsToDb: 0, mbConnMaxLifetimeMinutes: 0}
-	assert.Equal(t, &pcExp, pcInit)
-}
+//func TestInitPostgresConfig(t *testing.T) {
+//	logger, _ = zap.NewProduction()
+//	os.Setenv("PDB_SCHEME", "testSchema")
+//	os.Setenv("PDB_HOST", "testHost")
+//	os.Setenv("PDB_PORT", "testPort")
+//	os.Setenv("PDB_USER", "testUser")
+//	os.Setenv("PDB_PASSWORD", "testPass")
+//	os.Setenv("PDB_NAME", "testName")
+//	os.Setenv("MAX_OPENED_CONNECTIONS_TO_DB", "test")
+//	os.Setenv("MAX_IDLE_CONNECTIONS_TO_DB", "test")
+//	os.Setenv("MB_CONN_MAX_LIFETIME_MINUTES", "test")
+//	pcInit := initPostgresConfig()
+//	pcExp := postgresConfig{dbSchema: "testSchema", dbPort: "testPort", dbHost: "testHost", dbUser: "testUser", dbPassword: "testPass", dbName: "testName", maxOpenedConnectionsToDb: 0, maxIdleConnectionsToDb: 0, mbConnMaxLifetimeMinutes: 0}
+//	assert.Equal(t, &pcExp, pcInit)
+//}
 
-func TestNewMongoDBConfigRepo(t *testing.T) {
-	_, db, _ := newDB()
-	exp := MongoDBConfigRepoImpl{
-		DB: db,
-	}
-	result := NewMongoDBConfigRepo(db)
-	assert.Equal(t, &exp, result)
-}
+//func TestNewMongoDBConfigRepo(t *testing.T) {
+//	_, db, _ := newDB()
+//	exp := mongoDBConfigRepoImpl{
+//		DB: db,
+//	}
+//	result := NewMongoDBConfigRepo(db)
+//	assert.Equal(t, &exp, result)
+//}
+//
+//func TestNewTsConfigConfigRepo(t *testing.T) {
+//	_, db, _ := newDB()
+//	exp := tsConfigRepoImpl{
+//		DB: db,
+//	}
+//	result := NewTsConfigRepo(db)
+//	assert.Equal(t, &exp, result)
+//}
+//
+//func TestNewTempConfigConfigRepo(t *testing.T) {
+//	_, db, _ := newDB()
+//	exp := tempConfigRepoImpl{
+//		DB: db,
+//	}
+//	result := NewTempConfigRepo(db)
+//	assert.Equal(t, &exp, result)
+//}
 
-func TestNewTsConfigConfigRepo(t *testing.T) {
-	_, db, _ := newDB()
-	exp := TsConfigRepoImpl{
-		DB: db,
-	}
-	result := NewTsConfigRepo(db)
-	assert.Equal(t, &exp, result)
-}
-
-func TestNewTempConfigConfigRepo(t *testing.T) {
-	_, db, _ := newDB()
-	exp := TempConfigRepoImpl{
-		DB: db,
-	}
-	result := NewTempConfigRepo(db)
-	assert.Equal(t, &exp, result)
-}
-
-func TestFind(t *testing.T) {
+func TestPostgresStorage_FindMongoDBConfig(t *testing.T) {
 	m, db, _ := newDB()
-	mongoRepo := MongoDBConfigRepoImpl{DB: db}
+	repo := PostgresStorage{DB: db}
 	mongodbConfig := entity.Mongodb{Domain: "testDomain", Mongodb: true, Host: "testHost", Port: "testPort"}
 	mongoRows := getMongoDBRows(mongodbConfig.Domain)
 	m.ExpectQuery(formatRequest("SELECT * FROM \"mongodbs\" WHERE (domain = $1)")).WithArgs("testDomain").WillReturnRows(mongoRows)
-	returnedMongoConfigs, err := mongoRepo.Find("testDomain")
+	returnedMongoConfigs, err := repo.FindMongoDBConfig("testDomain")
 	if err != nil {
 		t.Error("error during unit testing: ", err)
 	}
@@ -102,59 +102,64 @@ func TestFind(t *testing.T) {
 	configName := "notExistingConfig"
 	expectedError := errors.New("db error")
 	m.ExpectQuery(formatRequest("SELECT * FROM \"mongodbs\" WHERE (domain = $1)")).WithArgs("notExistingConfig").WillReturnError(expectedError)
-	_, returnedErr := mongoRepo.Find(configName)
+	_, returnedErr := repo.FindMongoDBConfig(configName)
 	if assert.Error(t, returnedErr) {
 		assert.Equal(t, expectedError, returnedErr)
 	}
-
-	tsRepo := TsConfigRepoImpl{DB: db}
+}
+func TestPostgresStorage_FindTsConfig(t *testing.T) {
+	m, db, _ := newDB()
+	repo := PostgresStorage{DB: db}
 	tsConfig := entity.Tsconfig{Module: "testModule", Target: "testTarget", SourceMap: true, Excluding: 1}
 	tsRows := getTsConfigRows(tsConfig.Module)
 	m.ExpectQuery(formatRequest("SELECT * FROM \"tsconfigs\" WHERE (module = $1)")).WithArgs("testModule").WillReturnRows(tsRows)
-	returnedTsConfigs, err := tsRepo.Find("testModule")
+	returnedTsConfigs, err := repo.FindTsConfig("testModule")
 	if err != nil {
 		t.Error("error during unit testing: ", err)
 	}
 	fmt.Println(returnedTsConfigs)
 	assert.Equal(t, &tsConfig, returnedTsConfigs)
 
-	configName = "notExistingConfig"
-	expectedError = errors.New("db error")
+	configName := "notExistingConfig"
+	expectedError := errors.New("db error")
 	m.ExpectQuery(formatRequest("SELECT * FROM \"tsconfigs\" WHERE (module = $1)")).WithArgs("notExistingConfig").WillReturnError(expectedError)
-	_, returnedErr = tsRepo.Find(configName)
+	_, returnedErr := repo.FindTsConfig(configName)
 	if assert.Error(t, returnedErr) {
 		assert.Equal(t, expectedError, returnedErr)
 	}
+}
 
-	tempRepo := TempConfigRepoImpl{DB: db}
+func TestPostgresStorage_FindTempConfig(t *testing.T) {
+	m, db, _ := newDB()
+	repo := PostgresStorage{DB: db}
 	tempConfig := entity.Tempconfig{RestApiRoot: "testApiRoot", Host: "testHost", Port: "testPort", Remoting: "testRemoting", LegasyExplorer: true}
 	tempRows := getTempConfigRows(tempConfig.RestApiRoot)
 	m.ExpectQuery(formatRequest("SELECT * FROM \"tempconfigs\" WHERE (rest_api_root = $1)")).WithArgs("testRestApiRoot").WillReturnRows(tempRows)
-	returnedTempConfigs, err := tempRepo.Find("testRestApiRoot")
+	returnedTempConfigs, err := repo.FindTempConfig("testRestApiRoot")
 	if err != nil {
 		t.Error("error during unit testing: ", err)
 	}
 	fmt.Println(returnedTempConfigs)
 	assert.Equal(t, &tempConfig, returnedTempConfigs)
 
-	configName = "notExistingConfig"
-	expectedError = errors.New("db error")
+	configName := "notExistingConfig"
+	expectedError := errors.New("db error")
 	m.ExpectQuery(formatRequest("SELECT * FROM \"tempconfigs\" WHERE (rest_api_root = $1)")).WithArgs("notExistingConfig").WillReturnError(expectedError)
-	_, returnedErr = tempRepo.Find(configName)
+	_, returnedErr := repo.FindTempConfig(configName)
 	if assert.Error(t, returnedErr) {
 		assert.Equal(t, expectedError, returnedErr)
 	}
 
 }
 
-func TestFindAll(t *testing.T) {
+func TestPostgresStorage_FindAllMongoDBConfigl(t *testing.T) {
 	m, db, _ := newDB()
-	mongoRepo := MongoDBConfigRepoImpl{DB: db}
+	repo := PostgresStorage{DB: db}
 	mongodbConfig := entity.Mongodb{Domain: "testDomain", Mongodb: true, Host: "testHost", Port: "testPort"}
 	mongoRows := getMongoDBRows(mongodbConfig.Domain)
 	expConfigs := []entity.Mongodb{mongodbConfig}
 	m.ExpectQuery(formatRequest("SELECT * FROM \"mongodbs\"")).WillReturnRows(mongoRows)
-	returnedMongoConfigs, err := mongoRepo.FindAll()
+	returnedMongoConfigs, err := repo.FindAllMongoDBConfig()
 	if err != nil {
 		t.Error("error during unit testing: ", err)
 	}
@@ -162,58 +167,62 @@ func TestFindAll(t *testing.T) {
 
 	expectedError := errors.New("db error")
 	m.ExpectQuery(formatRequest("SELECT * FROM \"mongodbs\"")).WillReturnError(expectedError)
-	_, returnedErr := mongoRepo.FindAll()
+	_, returnedErr := repo.FindAllMongoDBConfig()
 	if assert.Error(t, returnedErr) {
 		assert.Equal(t, expectedError, returnedErr)
 	}
+}
 
-	tsRepo := TsConfigRepoImpl{DB: db}
+func TestPostgresStorage_FindAllTsConfig(t *testing.T) {
+	m, db, _ := newDB()
+	repo := PostgresStorage{DB: db}
 	tsConfig := entity.Tsconfig{Module: "testModule", Target: "testTarget", SourceMap: true, Excluding: 1}
 	tsRows := getTsConfigRows(tsConfig.Module)
 	expTsConfigs := []entity.Tsconfig{tsConfig}
 	m.ExpectQuery(formatRequest("SELECT * FROM \"tsconfigs\"")).WillReturnRows(tsRows)
-	returnedTsConfigs, err := tsRepo.FindAll()
+	returnedTsConfigs, err := repo.FindAllTsConfig()
 	if err != nil {
 		t.Error("error during unit testing: ", err)
 	}
 	assert.Equal(t, expTsConfigs, returnedTsConfigs)
 
-	expectedError = errors.New("db error")
+	expectedError := errors.New("db error")
 	m.ExpectQuery(formatRequest("SELECT * FROM \"tsconfigs\"")).WillReturnError(expectedError)
-	_, returnedErr = tsRepo.FindAll()
+	_, returnedErr := repo.FindAllTsConfig()
 	if assert.Error(t, returnedErr) {
 		assert.Equal(t, expectedError, returnedErr)
 	}
-
-	tempRepo := TempConfigRepoImpl{DB: db}
+}
+func TestPostgresStorage_FindAllTempConfig(t *testing.T) {
+	m, db, _ := newDB()
+	repo := PostgresStorage{DB: db}
 	tempConfig := entity.Tempconfig{RestApiRoot: "testApiRoot", Host: "testHost", Port: "testPort", Remoting: "testRemoting", LegasyExplorer: true}
 	tempRows := getTempConfigRows(tempConfig.RestApiRoot)
 	expTempConfigs := []entity.Tempconfig{tempConfig}
 	m.ExpectQuery(formatRequest("SELECT * FROM \"tempconfigs\"")).WillReturnRows(tempRows)
-	returnedTempConfigs, err := tempRepo.FindAll()
+	returnedTempConfigs, err := repo.FindAllTempConfig()
 	if err != nil {
 		t.Error("error during unit testing: ", err)
 	}
 	fmt.Println(returnedTempConfigs)
 	assert.Equal(t, expTempConfigs, returnedTempConfigs)
 
-	expectedError = errors.New("db error")
+	expectedError := errors.New("db error")
 	m.ExpectQuery(formatRequest("SELECT * FROM \"tempconfigs\"")).WillReturnError(expectedError)
-	_, returnedErr = tempRepo.FindAll()
+	_, returnedErr := repo.FindAllTempConfig()
 	if assert.Error(t, returnedErr) {
 		assert.Equal(t, expectedError, returnedErr)
 	}
-
 }
 
-func TestSave(t *testing.T) {
+func TestPostgresStorage_SaveMongoDBConfig(t *testing.T) {
 	m, db, _ := newDB()
-	mockRepo := MongoDBConfigRepoImpl{DB: db}
+	mockRepo := PostgresStorage{DB: db}
 	mongodbConfig := entity.Mongodb{Domain: "testDomain", Mongodb: true, Host: "testHost", Port: "testPort"}
 	m.ExpectExec(formatRequest("INSERT INTO \"mongodbs\" (\"domain\",\"mongodb\",\"host\",\"port\") VALUES ($1,$2,$3,$4) RETURNING \"mongodbs\".*")).
 		WithArgs("testDomain", true, "testHost", "testPort").
 		WillReturnResult(sqlmock.NewResult(0, 1))
-	result, err := mockRepo.Save(&mongodbConfig)
+	result, err := mockRepo.SaveMongoDBConfig(&mongodbConfig)
 	if err != nil {
 		t.Error("error during unit testing: ", err)
 	}
@@ -224,62 +233,62 @@ func TestSave(t *testing.T) {
 	m.ExpectExec(formatRequest("INSERT INTO \"mongodbs\" (\"domain\",\"mongodb\",\"host\",\"port\") VALUES ($1,$2,$3,$4) RETURNING \"mongodbs\".*")).
 		WithArgs("testDomainError", true, "testHost", "testPort").
 		WillReturnError(expectedError)
-	_, returnedErr := mockRepo.Save(&mongodbConfigErr)
+	_, returnedErr := mockRepo.SaveMongoDBConfig(&mongodbConfigErr)
 	if assert.Error(t, returnedErr) {
 		assert.Equal(t, expectedError, returnedErr)
 	}
-
-	tsRepo := TsConfigRepoImpl{DB: db}
-	tsConfig := entity.Tsconfig{Module: "testModule", Target: "testTarget", SourceMap: true, Excluding: 1}
-	m.ExpectExec(formatRequest("INSERT INTO \"tsconfigs\" (\"module\",\"target\",\"source_map\",\"excluding\") VALUES ($1,$2,$3,$4) RETURNING \"tsconfigs\".*")).
-		WithArgs("testModule", "testTarget", true, 1).
-		WillReturnResult(sqlmock.NewResult(0, 1))
-	result, err = tsRepo.Save(&tsConfig)
-	if err != nil {
-		t.Error("error during unit testing: ", err)
-	}
-	assert.Equal(t, "OK", result)
-
-	tsConfigErr := entity.Tsconfig{Module: "testModuleError", Target: "testTarget", SourceMap: true, Excluding: 1}
-	expectedError = errors.New("db error")
-	m.ExpectExec(formatRequest("INSERT INTO \"tsconfigs\" (\"module\",\"target\",\"source_map\",\"excluding\") VALUES ($1,$2,$3,$4) RETURNING \"tsconfigs\".*")).
-		WithArgs("testModuleError", "testTarget", true, 1).
-		WillReturnError(expectedError)
-	_, returnedErr = tsRepo.Save(&tsConfigErr)
-	if assert.Error(t, returnedErr) {
-		assert.Equal(t, expectedError, returnedErr)
-	}
-
-	tempRepo := TempConfigRepoImpl{DB: db}
-	tempConfig := entity.Tempconfig{RestApiRoot: "testApiRoot", Host: "testHost", Port: "testPort", Remoting: "testRemoting", LegasyExplorer: true}
-	m.ExpectExec(formatRequest("INSERT INTO \"tempconfigs\" (\"rest_api_root\",\"host\",\"port\",\"remoting\",\"legasy_explorer\") VALUES ($1,$2,$3,$4,$5) RETURNING \"tempconfigs\".*")).
-		WithArgs("testApiRoot", "testHost", "testPort", "testRemoting", true).
-		WillReturnResult(sqlmock.NewResult(0, 1))
-	result, err = tempRepo.Save(&tempConfig)
-	if err != nil {
-		t.Error("error during unit testing: ", err)
-	}
-	assert.Equal(t, "OK", result)
-
-	tempConfigErr := entity.Tempconfig{RestApiRoot: "testApiRootError", Host: "testHost", Port: "testPort", Remoting: "testRemoting", LegasyExplorer: true}
-	expectedError = errors.New("db error")
-	m.ExpectExec(formatRequest("INSERT INTO \"tempconfigs\" (\"rest_api_root\",\"host\",\"port\",\"remoting\",\"legasy_explorer\") VALUES ($1,$2,$3,$4,$5) RETURNING \"tempconfigs\".*")).
-		WithArgs("testApiRootError", "testHost", "testPort", "testRemoting", true).
-		WillReturnError(expectedError)
-	_, returnedErr = tempRepo.Save(&tempConfigErr)
-	if assert.Error(t, returnedErr) {
-		assert.Equal(t, expectedError, returnedErr)
-	}
+	//
+	//tsRepo := tsConfigRepoImpl{DB: db}
+	//tsConfig = entity.Tsconfig{Module: "testModule", Target: "testTarget", SourceMap: true, Excluding: 1}
+	//m.ExpectExec(formatRequest("INSERT INTO \"tsconfigs\" (\"module\",\"target\",\"source_map\",\"excluding\") VALUES ($1,$2,$3,$4) RETURNING \"tsconfigs\".*")).
+	//	WithArgs("testModule", "testTarget", true, 1).
+	//	WillReturnResult(sqlmock.NewResult(0, 1))
+	//result, err := tsRepo.Save(&tsConfig)
+	//if err != nil {
+	//	t.Error("error during unit testing: ", err)
+	//}
+	//assert.Equal(t, "OK", result)
+	//
+	//tsConfigErr := entity.Tsconfig{Module: "testModuleError", Target: "testTarget", SourceMap: true, Excluding: 1}
+	//expectedError = errors.New("db error")
+	//m.ExpectExec(formatRequest("INSERT INTO \"tsconfigs\" (\"module\",\"target\",\"source_map\",\"excluding\") VALUES ($1,$2,$3,$4) RETURNING \"tsconfigs\".*")).
+	//	WithArgs("testModuleError", "testTarget", true, 1).
+	//	WillReturnError(expectedError)
+	//_, returnedErr = tsRepo.Save(&tsConfigErr)
+	//if assert.Error(t, returnedErr) {
+	//	assert.Equal(t, expectedError, returnedErr)
+	//}
+	//
+	//tempRepo := tempConfigRepoImpl{DB: db}
+	//tempConfig := entity.Tempconfig{RestApiRoot: "testApiRoot", Host: "testHost", Port: "testPort", Remoting: "testRemoting", LegasyExplorer: true}
+	//m.ExpectExec(formatRequest("INSERT INTO \"tempconfigs\" (\"rest_api_root\",\"host\",\"port\",\"remoting\",\"legasy_explorer\") VALUES ($1,$2,$3,$4,$5) RETURNING \"tempconfigs\".*")).
+	//	WithArgs("testApiRoot", "testHost", "testPort", "testRemoting", true).
+	//	WillReturnResult(sqlmock.NewResult(0, 1))
+	//result, err = tempRepo.Save(&tempConfig)
+	//if err != nil {
+	//	t.Error("error during unit testing: ", err)
+	//}
+	//assert.Equal(t, "OK", result)
+	//
+	//tempConfigErr := entity.Tempconfig{RestApiRoot: "testApiRootError", Host: "testHost", Port: "testPort", Remoting: "testRemoting", LegasyExplorer: true}
+	//expectedError = errors.New("db error")
+	//m.ExpectExec(formatRequest("INSERT INTO \"tempconfigs\" (\"rest_api_root\",\"host\",\"port\",\"remoting\",\"legasy_explorer\") VALUES ($1,$2,$3,$4,$5) RETURNING \"tempconfigs\".*")).
+	//	WithArgs("testApiRootError", "testHost", "testPort", "testRemoting", true).
+	//	WillReturnError(expectedError)
+	//_, returnedErr = tempRepo.Save(&tempConfigErr)
+	//if assert.Error(t, returnedErr) {
+	//	assert.Equal(t, expectedError, returnedErr)
+	//}
 }
 
-func TestDelete(t *testing.T) {
+func TestPostgresStorage_DeleteMongoDBConfig(t *testing.T) {
 	m, db, _ := newDB()
-	mockRepo := MongoDBConfigRepoImpl{DB: db}
+	repo := PostgresStorage{DB: db}
 	testType := "mongodb"
 	testID := "testID"
 	m.ExpectExec(formatRequest("DELETE FROM \"" + testType + "s\" WHERE (domain = $1)")).
 		WithArgs("testID").WillReturnResult(sqlmock.NewResult(0, 1))
-	res, err := mockRepo.Delete(testID)
+	res, err := repo.DeleteMongoDBConfig(testID)
 	if err != nil {
 		t.Error("error during unit testing: ", err)
 	}
@@ -288,18 +297,20 @@ func TestDelete(t *testing.T) {
 	testID = "notExistingTestID"
 	m.ExpectExec(formatRequest("DELETE FROM \"" + testType + "s\" WHERE (domain = $1)")).
 		WithArgs("notExistingTestID").WillReturnError(errors.New("could not delete from database"))
-	_, returnedErr := mockRepo.Delete(testID)
+	_, returnedErr := repo.DeleteMongoDBConfig(testID)
 	expectedError := errors.New("could not delete from database")
 	if assert.Error(t, returnedErr) {
 		assert.Equal(t, expectedError, returnedErr)
 	}
-
-	tsRepo := TsConfigRepoImpl{DB: db}
-	testType = "tsconfig"
-	testID = "testID"
+}
+func TestPostgresStorage_DeleteTsConfig(t *testing.T) {
+	m, db, _ := newDB()
+	repo := PostgresStorage{DB: db}
+	testType := "tsconfig"
+	testID := "testID"
 	m.ExpectExec(formatRequest("DELETE FROM \"" + testType + "s\" WHERE (module = $1)")).
 		WithArgs("testID").WillReturnResult(sqlmock.NewResult(0, 1))
-	res, err = tsRepo.Delete(testID)
+	res, err := repo.DeleteTsConfig(testID)
 	if err != nil {
 		t.Error("error during unit testing: ", err)
 	}
@@ -308,36 +319,39 @@ func TestDelete(t *testing.T) {
 	testID = "notExistingTestID"
 	m.ExpectExec(formatRequest("DELETE FROM \"" + testType + "s\" WHERE (module = $1)")).
 		WithArgs("notExistingTestID").WillReturnError(errors.New("could not delete from database"))
-	_, returnedErr = tsRepo.Delete(testID)
-	expectedError = errors.New("could not delete from database")
-	if assert.Error(t, returnedErr) {
-		assert.Equal(t, expectedError, returnedErr)
-	}
-
-	tempRepo := TempConfigRepoImpl{DB: db}
-	testType = "tempconfig"
-	testID = "testID"
-	m.ExpectExec(formatRequest("DELETE FROM \"" + testType + "s\" WHERE (rest_api_root = $1)")).
-		WithArgs("testID").WillReturnResult(sqlmock.NewResult(0, 1))
-	res, err = tempRepo.Delete(testID)
-	if err != nil {
-		t.Error("error during unit testing: ", err)
-	}
-	assert.Equal(t, "deleted 1 row(s)", res)
-
-	testID = "notExistingTestID"
-	m.ExpectExec(formatRequest("DELETE FROM \"" + testType + "s\" WHERE (rest_api_root = $1)")).
-		WithArgs("notExistingTestID").WillReturnError(errors.New("could not delete from database"))
-	_, returnedErr = tempRepo.Delete(testID)
-	expectedError = errors.New("could not delete from database")
+	_, returnedErr := repo.DeleteTsConfig(testID)
+	expectedError := errors.New("could not delete from database")
 	if assert.Error(t, returnedErr) {
 		assert.Equal(t, expectedError, returnedErr)
 	}
 }
 
-func TestUpdate(t *testing.T) {
+func TestPostgresStorage_DeleteTempConfig(t *testing.T) {
 	m, db, _ := newDB()
-	mockRepo := MongoDBConfigRepoImpl{DB: db}
+	repo := PostgresStorage{DB: db}
+	testType := "tempconfig"
+	testID := "testID"
+	m.ExpectExec(formatRequest("DELETE FROM \"" + testType + "s\" WHERE (rest_api_root = $1)")).
+		WithArgs("testID").WillReturnResult(sqlmock.NewResult(0, 1))
+	res, err := repo.DeleteTempConfig(testID)
+	if err != nil {
+		t.Error("error during unit testing: ", err)
+	}
+	assert.Equal(t, "deleted 1 row(s)", res)
+
+	testID = "notExistingTestID"
+	m.ExpectExec(formatRequest("DELETE FROM \"" + testType + "s\" WHERE (rest_api_root = $1)")).
+		WithArgs("notExistingTestID").WillReturnError(errors.New("could not delete from database"))
+	_, returnedErr := repo.DeleteTempConfig(testID)
+	expectedError := errors.New("could not delete from database")
+	if assert.Error(t, returnedErr) {
+		assert.Equal(t, expectedError, returnedErr)
+	}
+}
+
+func TestPostgresStorage_UpdateMongoDBConfig(t *testing.T) {
+	m, db, _ := newDB()
+	repo := PostgresStorage{DB: db}
 	config := entity.Mongodb{Domain: "testDomain", Mongodb: true, Host: "testHost", Port: "8080"}
 	rows := getMongoDBRows(config.Domain)
 	m.ExpectQuery(formatRequest("SELECT * FROM \"mongodbs\" WHERE (domain = $1)")).
@@ -346,7 +360,7 @@ func TestUpdate(t *testing.T) {
 	m.ExpectExec(formatRequest("UPDATE mongodbs SET mongodb = $1, port = $2, host = $3 WHERE domain = $4")).
 		WithArgs(strconv.FormatBool(config.Mongodb), config.Port, config.Host, config.Domain).
 		WillReturnResult(sqlmock.NewResult(0, 1))
-	result, err := mockRepo.Update(&config)
+	result, err := repo.UpdateMongoDBConfig(&config)
 	if err != nil {
 		t.Error("error during unit testing: ", err)
 	}
@@ -358,7 +372,7 @@ func TestUpdate(t *testing.T) {
 	m.ExpectQuery(formatRequest("SELECT * FROM \"mongodbs\" WHERE (domain = $1)")).
 		WithArgs("errOneConfig").
 		WillReturnError(expectedErrorOne)
-	_, returnedErr := mockRepo.Update(&configErrOne)
+	_, returnedErr := repo.UpdateMongoDBConfig(&configErrOne)
 	if assert.Error(t, returnedErr) {
 		assert.Equal(t, expectedErrorOne, returnedErr)
 	}
@@ -372,7 +386,7 @@ func TestUpdate(t *testing.T) {
 	m.ExpectExec(formatRequest("UPDATE mongodbs SET mongodb = $1, port = $2, host = $3 WHERE domain = $4")).
 		WithArgs(strconv.FormatBool(configErrTwo.Mongodb), configErrTwo.Port, configErrTwo.Host, configErrTwo.Domain).
 		WillReturnError(expectedErrorTwo)
-	_, returnedErr = mockRepo.Update(&configErrTwo)
+	_, returnedErr = repo.UpdateMongoDBConfig(&configErrTwo)
 	if assert.Error(t, returnedErr) {
 		assert.Equal(t, expectedErrorTwo, returnedErr)
 	}
@@ -386,14 +400,16 @@ func TestUpdate(t *testing.T) {
 	m.ExpectExec(formatRequest("UPDATE mongodbs SET mongodb = $1, port = $2, host = $3 WHERE domain = $4")).
 		WithArgs(strconv.FormatBool(configErrThree.Mongodb), configErrThree.Port, configErrThree.Host, configErrThree.Domain).
 		WillReturnError(expectedErrorThree)
-	_, returnedErr = mockRepo.Update(&configErrThree)
+	_, returnedErr = repo.UpdateMongoDBConfig(&configErrThree)
 	if assert.Error(t, returnedErr) {
 		assert.Equal(t, expectedErrorThree, returnedErr)
 	}
+}
 
-	m, db, _ = newDB()
+func TestPostgresStorage_UpdateTsConfig(t *testing.T) {
+	m, db, _ := newDB()
 
-	tsRepo := TsConfigRepoImpl{DB: db}
+	repo := PostgresStorage{DB: db}
 	tsConfig := entity.Tsconfig{Module: "testModule", Target: "testTarget", SourceMap: true, Excluding: 1}
 	tsRows := getTsConfigRows(tsConfig.Module)
 	m.ExpectQuery(formatRequest("SELECT * FROM \"tsconfigs\" WHERE (module = $1)")).
@@ -402,7 +418,7 @@ func TestUpdate(t *testing.T) {
 	m.ExpectExec(formatRequest("UPDATE tsconfigs SET target = $1, source_map = $2, excluding = $3 WHERE module = $4")).
 		WithArgs(tsConfig.Target, strconv.FormatBool(tsConfig.SourceMap), strconv.Itoa(tsConfig.Excluding), tsConfig.Module).
 		WillReturnResult(sqlmock.NewResult(0, 1))
-	tsResult, err := tsRepo.Update(&tsConfig)
+	tsResult, err := repo.UpdateTsConfig(&tsConfig)
 	if err != nil {
 		t.Error("error during unit testing: ", err)
 	}
@@ -413,7 +429,7 @@ func TestUpdate(t *testing.T) {
 	m.ExpectQuery(formatRequest("SELECT * FROM \"tsconfigs\" WHERE (module = $1)")).
 		WithArgs("errOneConfig").
 		WillReturnError(expectedTsErrorOne)
-	_, tsReturnedErr := tsRepo.Update(&tsConfigErrOne)
+	_, tsReturnedErr := repo.UpdateTsConfig(&tsConfigErrOne)
 	if assert.Error(t, tsReturnedErr) {
 		assert.Equal(t, expectedTsErrorOne, tsReturnedErr)
 	}
@@ -427,7 +443,7 @@ func TestUpdate(t *testing.T) {
 	m.ExpectExec(formatRequest("UPDATE tsconfigs SET target = $1, source_map = $2, excluding = $3 WHERE module = $4")).
 		WithArgs(tsConfigErrTwo.Target, strconv.FormatBool(tsConfigErrTwo.SourceMap), strconv.Itoa(tsConfigErrTwo.Excluding), tsConfigErrTwo.Module).
 		WillReturnError(expectedTsErrorTwo)
-	_, tsReturnedErrTwo := tsRepo.Update(&tsConfigErrTwo)
+	_, tsReturnedErrTwo := repo.UpdateTsConfig(&tsConfigErrTwo)
 	if assert.Error(t, tsReturnedErrTwo) {
 		assert.Equal(t, expectedTsErrorTwo, tsReturnedErrTwo)
 	}
@@ -441,14 +457,16 @@ func TestUpdate(t *testing.T) {
 	m.ExpectExec(formatRequest("UPDATE tsconfigs SET target = $1, source_map = $2, excluding = $3 WHERE module = $4")).
 		WithArgs(tsConfigErrThree.Target, strconv.FormatBool(tsConfigErrThree.SourceMap), strconv.Itoa(tsConfigErrThree.Excluding), tsConfigErrThree.Module).
 		WillReturnError(expectedTsErrorThree)
-	_, tsReturnedErrThree := tsRepo.Update(&tsConfigErrThree)
+	_, tsReturnedErrThree := repo.UpdateTsConfig(&tsConfigErrThree)
 	if assert.Error(t, tsReturnedErrThree) {
 		assert.Equal(t, expectedTsErrorThree, tsReturnedErrThree)
 	}
+}
 
-	m, db, _ = newDB()
+func TestPostgresStorage_UpdateTempConfig(t *testing.T) {
+	m, db, _ := newDB()
 
-	tempRepo := TempConfigRepoImpl{DB: db}
+	repo := PostgresStorage{DB: db}
 	tempConfig := entity.Tempconfig{RestApiRoot: "testApiRoot", Host: "testHost", Port: "testPort", Remoting: "testRemoting", LegasyExplorer: true}
 	tempRows := getTempConfigRows(tempConfig.RestApiRoot)
 	m.ExpectQuery(formatRequest("SELECT * FROM \"tempconfigs\" WHERE (rest_api_root = $1)")).
@@ -457,7 +475,7 @@ func TestUpdate(t *testing.T) {
 	m.ExpectExec(formatRequest("UPDATE tempconfigs SET remoting = $1, port = $2, host = $3, legasy_explorer = $4 WHERE rest_api_root = $5")).
 		WithArgs(tempConfig.Remoting, tempConfig.Port, tempConfig.Host, strconv.FormatBool(tempConfig.LegasyExplorer), tempConfig.RestApiRoot).
 		WillReturnResult(sqlmock.NewResult(0, 1))
-	tempResult, err := tempRepo.Update(&tempConfig)
+	tempResult, err := repo.UpdateTempConfig(&tempConfig)
 	if err != nil {
 		t.Error("error during unit testing: ", err)
 	}
@@ -468,7 +486,7 @@ func TestUpdate(t *testing.T) {
 	m.ExpectQuery(formatRequest("SELECT * FROM \"tempconfigs\" WHERE (rest_api_root = $1)")).
 		WithArgs("errOneConfig").
 		WillReturnError(expectedTempErrorOne)
-	_, tempReturnedErr := tempRepo.Update(&tempConfigErrOne)
+	_, tempReturnedErr := repo.UpdateTempConfig(&tempConfigErrOne)
 	if assert.Error(t, tempReturnedErr) {
 		assert.Equal(t, expectedTempErrorOne, tempReturnedErr)
 	}
@@ -482,7 +500,7 @@ func TestUpdate(t *testing.T) {
 	m.ExpectExec(formatRequest("UPDATE tempconfigs SET remoting = $1, port = $2, host = $3, legasy_explorer = $4 WHERE rest_api_root = $5")).
 		WithArgs(tempConfigErrTwo.Remoting, tempConfigErrTwo.Port, tempConfigErrTwo.Host, strconv.FormatBool(tempConfigErrTwo.LegasyExplorer), tempConfigErrTwo.RestApiRoot).
 		WillReturnError(expectedTempErrorTwo)
-	_, tempReturnedErrTwo := tempRepo.Update(&tempConfigErrTwo)
+	_, tempReturnedErrTwo := repo.UpdateTempConfig(&tempConfigErrTwo)
 	if assert.Error(t, tempReturnedErrTwo) {
 		assert.Equal(t, expectedTempErrorTwo, tempReturnedErrTwo)
 	}
@@ -496,7 +514,7 @@ func TestUpdate(t *testing.T) {
 	m.ExpectExec(formatRequest("UPDATE tempconfigs SET remoting = $1, port = $2, host = $3, legasy_explorer = $4 WHERE rest_api_root = $5")).
 		WithArgs(tempConfigErrThree.Remoting, tempConfigErrThree.Port, tempConfigErrThree.Host, strconv.FormatBool(tempConfigErrThree.LegasyExplorer), tempConfigErrThree.RestApiRoot).
 		WillReturnError(expectedTempErrorThree)
-	_, tempReturnedErrThree := tempRepo.Update(&tempConfigErrThree)
+	_, tempReturnedErrThree := repo.UpdateTempConfig(&tempConfigErrThree)
 	if assert.Error(t, tempReturnedErrThree) {
 		assert.Equal(t, expectedTempErrorThree, tempReturnedErrThree)
 	}

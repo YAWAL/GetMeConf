@@ -36,13 +36,13 @@ const (
 )
 
 var (
-	defaultDbScheme   = "postgres"
-	defaultDbDSN      = "postgres://postgres:postgres@127.0.0.1:5432/postgres?sslmode=disable"
-	defaultDbHost     = "horton.elephantsql.com"
-	defaultDbPort     = "5432"
-	defaultDbUser     = "dlxifkbx"
-	defaultDbPassword = "L7Cey-ucPY4L3T6VFlFdNykNE4jO0VjV"
-	defaultDbName     = "dlxifkbx"
+	defaultDbScheme = "postgres"
+	defaultDbDSN    = "postgres://dlxifkbx:L7Cey-ucPY4L3T6VFlFdNykNE4jO0VjV@horton.elephantsql.com:5432/dlxifkbx?sslmode=disable"
+	//defaultDbHost     = "horton.elephantsql.com"
+	//defaultDbPort     = "5432"
+	//defaultDbUser     = "dlxifkbx"
+	//defaultDbPassword = "L7Cey-ucPY4L3T6VFlFdNykNE4jO0VjV"
+	//defaultDbName     = "dlxifkbx"
 
 	defaultMaxOpenedConnectionsToDb = 5
 	defaultMaxIdleConnectionsToDb   = 0
@@ -103,7 +103,8 @@ func (s *ConfigGRPCServer) GetConfigsByType(typeRequest *pb.GetConfigsByTypeRequ
 	return nil
 }
 
-// CreateConfig calls the function from database package to add a new config record to the database, returns response structure containing a status message.
+// CreateConfig calls the function from database package to add a new config record to the database,
+// returns response structure containing a status message.
 func (s *ConfigGRPCServer) CreateConfig(ctx context.Context, config *pb.Config) (*pb.Responce, error) {
 	res, err := s.configServer.CreateConfig(config)
 	if err != nil {
@@ -114,7 +115,8 @@ func (s *ConfigGRPCServer) CreateConfig(ctx context.Context, config *pb.Config) 
 	return res, nil
 }
 
-// DeleteConfig removes config records from the database. If successful, returns the amount of deleted records in a status message of the response structure.
+// DeleteConfig removes config records from the database.
+// If successful, returns the amount of deleted records in a status message of the response structure.
 func (s *ConfigGRPCServer) DeleteConfig(ctx context.Context, delConfigRequest *pb.DeleteConfigRequest) (*pb.Responce, error) {
 	res, err := s.configServer.DeleteConfig(delConfigRequest)
 	if err != nil {
@@ -168,7 +170,7 @@ func Run() {
 		logger.Fatal("failed to init postgres db", zap.Error(err))
 	}
 
-	postgresStorage.Migrate(postgresStorage.TempRepo.DB)
+	postgresStorage.Migrate()
 
 	server := usecase.NewConfigServer(postgresStorage, serviceConfiguration)
 

@@ -13,28 +13,21 @@ import (
 	"gopkg.in/gormigrate.v1"
 )
 
-type Storage interface {
-	Migrate(db *gorm.DB) error
-}
-
 type PostgresStorage struct {
-	MongoDBRepo *MongoDBConfigRepoImpl
-	TsRepo      *TsConfigRepoImpl
-	TempRepo    *TempConfigRepoImpl
-}
-
-// MongoDBConfigRepoImpl represents an implementation of a MongoDB configs repository.
-type MongoDBConfigRepoImpl struct {
 	DB *gorm.DB
 }
 
+// MongoDBConfigRepoImpl represents an implementation of a MongoDB configs repository.
+type mongoDBConfigRepoImpl struct {
+}
+
 // TsConfigRepoImpl represents an implementation of a Tsconfigs repository.
-type TsConfigRepoImpl struct {
+type tsConfigRepoImpl struct {
 	DB *gorm.DB
 }
 
 // TempConfigRepoImpl represents an implementation of a Tempconfigs repository.
-type TempConfigRepoImpl struct {
+type tempConfigRepoImpl struct {
 	DB *gorm.DB
 }
 
@@ -62,35 +55,45 @@ func initPostgresDB(conf *PostgresConfig) (db *gorm.DB, err error) {
 func NewPostgresStorage(conf *PostgresConfig) (*PostgresStorage, error) {
 	db, err := initPostgresDB(conf)
 	return &PostgresStorage{
-		MongoDBRepo: &MongoDBConfigRepoImpl{DB: db},
-		TsRepo:      &TsConfigRepoImpl{DB: db},
-		TempRepo:    &TempConfigRepoImpl{DB: db},
+		DB: db,
 	}, err
 }
 
-// NewMongoDBConfigRepo returns a new MongoDB configs repository.
-func NewMongoDBConfigRepo(db *gorm.DB) MongoDBConfigRepo {
-	return &MongoDBConfigRepoImpl{
-		DB: db,
-	}
-}
+//func (s *PostgresStorage) GetMongoDBRepo() MongoDBConfigRepo {
+//	return s.MongoDBRepo
+//}
+//
+//func (s *PostgresStorage) GetTsRepo() TsConfigRepo {
+//	return s.TsRepo
+//}
+//
+//func (s *PostgresStorage) GetTempRepo() TempConfigRepo {
+//	return s.TempRepo
+//}
 
-// NewTempConfigRepo returns a new Tempconfigs repository.
-func NewTempConfigRepo(db *gorm.DB) TempConfigRepo {
-	return &TempConfigRepoImpl{
-		DB: db,
-	}
-}
+//// NewMongoDBConfigRepo returns a new MongoDB configs repository.
+//func NewMongoDBConfigRepo(db *gorm.DB) MongoDBConfigRepo {
+//	return &mongoDBConfigRepoImpl{
+//		DB: db,
+//	}
+//}
+//
+//// NewTempConfigRepo returns a new Tempconfigs repository.
+//func NewTempConfigRepo(db *gorm.DB) TempConfigRepo {
+//	return &tempConfigRepoImpl{
+//		DB: db,
+//	}
+//}
+//
+//// NewTsConfigRepo returns a new TsConfig repository.
+//func NewTsConfigRepo(db *gorm.DB) TsConfigRepo {
+//	return &tsConfigRepoImpl{
+//		DB: db,
+//	}
+//}
 
-// NewTsConfigRepo returns a new TsConfig repository.
-func NewTsConfigRepo(db *gorm.DB) TsConfigRepo {
-	return &TsConfigRepoImpl{
-		DB: db,
-	}
-}
-
-func (s *PostgresStorage) Migrate(db *gorm.DB) error {
-	m := gormigrate.New(db, gormigrate.DefaultOptions, []*gormigrate.Migration{
+func (s *PostgresStorage) Migrate() error {
+	m := gormigrate.New(s.DB, gormigrate.DefaultOptions, []*gormigrate.Migration{
 		{
 			ID: "Initial",
 			Migrate: func(tx *gorm.DB) error {
@@ -131,53 +134,54 @@ func (s *PostgresStorage) Migrate(db *gorm.DB) error {
 	return err
 }
 
-//Find returns a config record from database using the unique name
-func (r *MongoDBConfigRepoImpl) Find(configName string) (*entity.Mongodb, error) {
+//FindMongoDBConfig returns a config record from database using the unique name
+func (s *PostgresStorage) FindMongoDBConfig(configName string) (*entity.Mongodb, error) {
 	result := entity.Mongodb{}
-	err := r.DB.Where("domain = ?", configName).Find(&result).Error
+	err := s.DB.Where("domain = ?", configName).Find(&result).Error
 	if err != nil {
 		return nil, err
 	}
 	return &result, nil
 }
 
-//FindAll returns all config record of one type from database
-func (r *MongoDBConfigRepoImpl) FindAll() ([]entity.Mongodb, error) {
+//FindAllMongoDBConfig returns all config record of one type from database
+func (s *PostgresStorage) FindAllMongoDBConfig() ([]entity.Mongodb, error) {
 	var confSlice []entity.Mongodb
-	err := r.DB.Find(&confSlice).Error
+	err := s.DB.Find(&confSlice).Error
 	if err != nil {
 		return nil, err
 	}
 	return confSlice, nil
 }
 
-//Save saves new config record to the database
-func (r *MongoDBConfigRepoImpl) Save(config *entity.Mongodb) (string, error) {
-	err := r.DB.Create(config).Error
+//SaveMongoDBConfig saves new config record to the database
+func (s *PostgresStorage) SaveMongoDBConfig(config *entity.Mongodb) (string, error) {
+	err := s.DB.Create(config).Error
 	if err != nil {
 		return "", err
 	}
 	return "OK", nil
 }
 
-//Delete removes config record from database
-func (r *MongoDBConfigRepoImpl) Delete(configName string) (string, error) {
-	rowsAffected := r.DB.Delete(entity.Mongodb{}, "domain = ?", configName).RowsAffected
+//DeleteMongoDBConfig removes config record from database
+func (s *PostgresStorage) DeleteMongoDBConfig(configName string) (string, error) {
+	rowsAffected := s.DB.Delete(entity.Mongodb{}, "domain = ?", configName).RowsAffected
 	if rowsAffected < 1 {
 		return "", errors.New("could not delete from database")
 	}
 	return fmt.Sprintf("deleted %d row(s)", rowsAffected), nil
 }
 
-//Update updates a record in database, rewriting the fields if string fields are not empty
-func (r *MongoDBConfigRepoImpl) Update(newConfig *entity.Mongodb) (string, error) {
+//UpdateMongoDBConfig updates a record in database, rewriting the fields if string fields are not empty
+func (s *PostgresStorage) UpdateMongoDBConfig(newConfig *entity.Mongodb) (string, error) {
 	var persistedConfig entity.Mongodb
-	err := r.DB.Where("domain = ?", newConfig.Domain).Find(&persistedConfig).Error
+	err := s.DB.Where("domain = ?", newConfig.Domain).Find(&persistedConfig).Error
 	if err != nil {
 		return "", err
 	}
 	if newConfig.Host != "" && newConfig.Port != "" {
-		err = r.DB.Exec("UPDATE mongodbs SET mongodb = ?, port = ?, host = ? WHERE domain = ?", strconv.FormatBool(newConfig.Mongodb), newConfig.Port, newConfig.Host, persistedConfig.Domain).Error
+		err = s.DB.Exec("UPDATE mongodbs SET mongodb = ?, port = ?, host = ? WHERE domain = ?",
+			strconv.FormatBool(newConfig.Mongodb), newConfig.Port, newConfig.Host, persistedConfig.Domain).Error
 		if err != nil {
 			return "", err
 		}
@@ -186,53 +190,54 @@ func (r *MongoDBConfigRepoImpl) Update(newConfig *entity.Mongodb) (string, error
 	return "", errors.New("fields are empty")
 }
 
-//Find returns a config record from database using the unique name
-func (r *TempConfigRepoImpl) Find(configName string) (*entity.Tempconfig, error) {
+//FindTempConfig returns a config record from database using the unique name
+func (s *PostgresStorage) FindTempConfig(configName string) (*entity.Tempconfig, error) {
 	result := entity.Tempconfig{}
-	err := r.DB.Where("rest_api_root = ?", configName).Find(&result).Error
+	err := s.DB.Where("rest_api_root = ?", configName).Find(&result).Error
 	if err != nil {
 		return nil, err
 	}
 	return &result, nil
 }
 
-//FindAll returns all config record of one type from database
-func (r *TempConfigRepoImpl) FindAll() ([]entity.Tempconfig, error) {
+//FindAllTempConfig returns all config record of one type from database
+func (s *PostgresStorage) FindAllTempConfig() ([]entity.Tempconfig, error) {
 	var confSlice []entity.Tempconfig
-	err := r.DB.Find(&confSlice).Error
+	err := s.DB.Find(&confSlice).Error
 	if err != nil {
 		return nil, err
 	}
 	return confSlice, nil
 }
 
-//Save saves new config record to the database
-func (r *TempConfigRepoImpl) Save(config *entity.Tempconfig) (string, error) {
-	err := r.DB.Create(config).Error
+//SaveTempConfig saves new config record to the database
+func (s *PostgresStorage) SaveTempConfig(config *entity.Tempconfig) (string, error) {
+	err := s.DB.Create(config).Error
 	if err != nil {
 		return "", err
 	}
 	return "OK", nil
 }
 
-//Delete removes config record from database
-func (r *TempConfigRepoImpl) Delete(configName string) (string, error) {
-	rowsAffected := r.DB.Delete(entity.Tempconfig{}, "rest_api_root = ?", configName).RowsAffected
+//DeleteTempConfig removes config record from database
+func (s *PostgresStorage) DeleteTempConfig(configName string) (string, error) {
+	rowsAffected := s.DB.Delete(entity.Tempconfig{}, "rest_api_root = ?", configName).RowsAffected
 	if rowsAffected < 1 {
 		return "", errors.New("could not delete from database")
 	}
 	return fmt.Sprintf("deleted %d row(s)", rowsAffected), nil
 }
 
-//Update updates a record in database, rewriting the fields if string fields are not empty
-func (r *TempConfigRepoImpl) Update(newConfig *entity.Tempconfig) (string, error) {
+//UpdateTempConfig updates a record in database, rewriting the fields if string fields are not empty
+func (s *PostgresStorage) UpdateTempConfig(newConfig *entity.Tempconfig) (string, error) {
 	var persistedConfig entity.Tempconfig
-	err := r.DB.Where("rest_api_root = ?", newConfig.RestApiRoot).Find(&persistedConfig).Error
+	err := s.DB.Where("rest_api_root = ?", newConfig.RestApiRoot).Find(&persistedConfig).Error
 	if err != nil {
 		return "", err
 	}
 	if newConfig.Host != "" && newConfig.Port != "" && newConfig.Remoting != "" {
-		err = r.DB.Exec("UPDATE tempconfigs SET remoting = ?, port = ?, host = ?, legasy_explorer = ? WHERE rest_api_root = ?", newConfig.Remoting, newConfig.Port, newConfig.Host, strconv.FormatBool(newConfig.LegasyExplorer), persistedConfig.RestApiRoot).Error
+		err = s.DB.Exec("UPDATE tempconfigs SET remoting = ?, port = ?, host = ?, legasy_explorer = ? WHERE rest_api_root = ?",
+			newConfig.Remoting, newConfig.Port, newConfig.Host, strconv.FormatBool(newConfig.LegasyExplorer), persistedConfig.RestApiRoot).Error
 		if err != nil {
 			return "", err
 		}
@@ -241,53 +246,54 @@ func (r *TempConfigRepoImpl) Update(newConfig *entity.Tempconfig) (string, error
 	return "", errors.New("fields are empty")
 }
 
-//Find returns a config record from database using the unique name
-func (r *TsConfigRepoImpl) Find(configName string) (*entity.Tsconfig, error) {
+//FindTsConfig returns a config record from database using the unique name
+func (s *PostgresStorage) FindTsConfig(configName string) (*entity.Tsconfig, error) {
 	result := entity.Tsconfig{}
-	err := r.DB.Where("module = ?", configName).Find(&result).Error
+	err := s.DB.Where("module = ?", configName).Find(&result).Error
 	if err != nil {
 		return nil, err
 	}
 	return &result, nil
 }
 
-//FindAll returns all config record of one type from database
-func (r *TsConfigRepoImpl) FindAll() ([]entity.Tsconfig, error) {
+//FindAllTsConfig returns all config record of one type from database
+func (s *PostgresStorage) FindAllTsConfig() ([]entity.Tsconfig, error) {
 	var confSlice []entity.Tsconfig
-	err := r.DB.Find(&confSlice).Error
+	err := s.DB.Find(&confSlice).Error
 	if err != nil {
 		return nil, err
 	}
 	return confSlice, nil
 }
 
-//Save saves new config record to the database
-func (r *TsConfigRepoImpl) Save(config *entity.Tsconfig) (string, error) {
-	err := r.DB.Create(config).Error
+//SaveTsConfig saves new config record to the database
+func (s *PostgresStorage) SaveTsConfig(config *entity.Tsconfig) (string, error) {
+	err := s.DB.Create(config).Error
 	if err != nil {
 		return "", err
 	}
 	return "OK", nil
 }
 
-//Delete removes config record from database
-func (r *TsConfigRepoImpl) Delete(configName string) (string, error) {
-	rowsAffected := r.DB.Delete(entity.Tsconfig{}, "module = ?", configName).RowsAffected
+//DeleteTsConfig removes config record from database
+func (s *PostgresStorage) DeleteTsConfig(configName string) (string, error) {
+	rowsAffected := s.DB.Delete(entity.Tsconfig{}, "module = ?", configName).RowsAffected
 	if rowsAffected < 1 {
 		return "", errors.New("could not delete from database")
 	}
 	return fmt.Sprintf("deleted %d row(s)", rowsAffected), nil
 }
 
-//Update updates a record in database, rewriting the fields if string fields are not empty
-func (r *TsConfigRepoImpl) Update(newConfig *entity.Tsconfig) (string, error) {
+//UpdateTsConfig updates a record in database, rewriting the fields if string fields are not empty
+func (s *PostgresStorage) UpdateTsConfig(newConfig *entity.Tsconfig) (string, error) {
 	var persistedConfig entity.Tsconfig
-	err := r.DB.Where("module = ?", newConfig.Module).Find(&persistedConfig).Error
+	err := s.DB.Where("module = ?", newConfig.Module).Find(&persistedConfig).Error
 	if err != nil {
 		return "", err
 	}
 	if newConfig.Target != "" {
-		err = r.DB.Exec("UPDATE tsconfigs SET target = ?, source_map = ?, excluding = ? WHERE module = ?", newConfig.Target, strconv.FormatBool(newConfig.SourceMap), strconv.Itoa(newConfig.Excluding), persistedConfig.Module).Error
+		err = s.DB.Exec("UPDATE tsconfigs SET target = ?, source_map = ?, excluding = ? WHERE module = ?",
+			newConfig.Target, strconv.FormatBool(newConfig.SourceMap), strconv.Itoa(newConfig.Excluding), persistedConfig.Module).Error
 		if err != nil {
 			return "", err
 		}

@@ -5,29 +5,24 @@ import (
 	"github.com/YAWAL/GetMeConf/entity"
 )
 
-// MongoDBConfigRepo is a repository interface for MongoDB configs.
-type MongoDBConfigRepo interface {
-	Find(configName string) (*entity.Mongodb, error)
-	FindAll() ([]entity.Mongodb, error)
-	Update(config *entity.Mongodb) (string, error)
-	Save(config *entity.Mongodb) (string, error)
-	Delete(configName string) (string, error)
-}
+type Storage interface {
+	Migrate() error
 
-// TempConfigRepo is a repository interface for Tempconfigs.
-type TempConfigRepo interface {
-	Find(configName string) (*entity.Tempconfig, error)
-	FindAll() ([]entity.Tempconfig, error)
-	Update(config *entity.Tempconfig) (string, error)
-	Save(config *entity.Tempconfig) (string, error)
-	Delete(configName string) (string, error)
-}
+	FindMongoDBConfig(configName string) (*entity.Mongodb, error)
+	FindAllMongoDBConfig() ([]entity.Mongodb, error)
+	UpdateMongoDBConfig(config *entity.Mongodb) (string, error)
+	SaveMongoDBConfig(config *entity.Mongodb) (string, error)
+	DeleteMongoDBConfig(configName string) (string, error)
 
-// TsConfigRepo is a repository interface for Tsconfigs.
-type TsConfigRepo interface {
-	Find(configName string) (*entity.Tsconfig, error)
-	FindAll() ([]entity.Tsconfig, error)
-	Update(config *entity.Tsconfig) (string, error)
-	Save(config *entity.Tsconfig) (string, error)
-	Delete(configName string) (string, error)
+	FindTempConfig(configName string) (*entity.Tempconfig, error)
+	FindAllTempConfig() ([]entity.Tempconfig, error)
+	UpdateTempConfig(config *entity.Tempconfig) (string, error)
+	SaveTempConfig(config *entity.Tempconfig) (string, error)
+	DeleteTempConfig(configName string) (string, error)
+
+	FindTsConfig(configName string) (*entity.Tsconfig, error)
+	FindAllTsConfig() ([]entity.Tsconfig, error)
+	UpdateTsConfig(config *entity.Tsconfig) (string, error)
+	SaveTsConfig(config *entity.Tsconfig) (string, error)
+	DeleteTsConfig(configName string) (string, error)
 }
