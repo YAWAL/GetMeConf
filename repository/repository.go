@@ -7,8 +7,6 @@ import (
 
 // Storage interface collects all the methods to interact with a database.
 type Storage interface {
-	Migrate() error
-
 	FindMongoDBConfig(configName string) (*entity.Mongodb, error)
 	FindAllMongoDBConfig() ([]entity.Mongodb, error)
 	UpdateMongoDBConfig(config *entity.Mongodb) (string, error)

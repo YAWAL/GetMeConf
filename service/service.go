@@ -158,7 +158,7 @@ func Run() {
 		logger.Fatal("failed to init postgres db", zap.Error(err))
 	}
 
-	err = postgresStorage.Migrate()
+	err = repository.RunMigrations(postgresStorage.DB)
 	if err != nil {
 		logger.Fatal("failed to migrate", zap.Error(err))
 	}
@@ -190,9 +190,9 @@ func Run() {
 }
 
 func validatePostgresConfig(logger *zap.Logger, c *repository.PostgresConfig) {
-	if c.Shema == "" {
+	if c.Schema == "" {
 		logger.Info("error during reading env. variable", zap.String("default value is used ", defaultDbScheme))
-		c.Shema = defaultDbScheme
+		c.Schema = defaultDbScheme
 	}
 	if c.DSN == "" {
 		logger.Info("error during reading env. variable", zap.String("default value is used ", defaultDbDSN))
@@ -234,7 +234,7 @@ func validatePostgresConfig(logger *zap.Logger, c *repository.PostgresConfig) {
 
 func initPostgresConfig(logger *zap.Logger) *repository.PostgresConfig {
 	c := new(repository.PostgresConfig)
-	c.Shema = os.Getenv(pdbScheme)
+	c.Schema = os.Getenv(pdbScheme)
 	c.DSN = os.Getenv(pdbDSN)
 	//c.dbHost = os.Getenv(pdbHost)
 	//c.dbPort = os.Getenv(pdbPort)

@@ -10,7 +10,6 @@ import (
 	"github.com/YAWAL/GetMeConf/entity"
 	"github.com/jinzhu/gorm"
 	_ "github.com/lib/pq"
-	"gopkg.in/gormigrate.v1"
 )
 
 // PostgresStorage wraps the database connection.
@@ -20,7 +19,7 @@ type PostgresStorage struct {
 
 // PostgresConfig represents a configuration for the postgres database connection
 type PostgresConfig struct {
-	Shema                    string
+	Schema                   string
 	DSN                      string
 	MaxOpenedConnectionsToDb int
 	MaxIdleConnectionsToDb   int
@@ -29,7 +28,7 @@ type PostgresConfig struct {
 
 // InitPostgresDB initiates database connection using environmental variables.
 func initPostgresDB(conf *PostgresConfig) (db *gorm.DB, err error) {
-	db, err = gorm.Open(conf.Shema, conf.DSN)
+	db, err = gorm.Open(conf.Schema, conf.DSN)
 	if err != nil {
 		return nil, err
 	}
@@ -45,45 +44,6 @@ func NewPostgresStorage(conf *PostgresConfig) (*PostgresStorage, error) {
 	return &PostgresStorage{
 		DB: db,
 	}, err
-}
-
-// Migrate is used for a database schema migration.
-func (s *PostgresStorage) Migrate() error {
-	m := gormigrate.New(s.DB, gormigrate.DefaultOptions, []*gormigrate.Migration{
-		{
-			ID: "Initial",
-			Migrate: func(tx *gorm.DB) error {
-				type Mongodb struct {
-					//gorm.Model
-					Domain  string `gorm:"primary_key"`
-					Mongodb bool
-					Host    string
-					Port    string
-				}
-				type Tsconfig struct {
-					//gorm.Model
-					Module    string `gorm:"primary_key"`
-					Target    string
-					SourceMap bool
-					Excluding int
-				}
-				type Tempconfig struct {
-					//gorm.Model
-					RestApiRoot    string `gorm:"primary_key"`
-					Host           string
-					Port           string
-					Remoting       string
-					LegasyExplorer bool
-				}
-				return tx.AutoMigrate(&Mongodb{}, &Tsconfig{}, &Tempconfig{}).Error
-			},
-			Rollback: func(tx *gorm.DB) error {
-				return tx.DropTable("mongodbs", "tsconfigs", "tempconfigs").Error
-			},
-		},
-	})
-
-	return m.Migrate()
 }
 
 //FindMongoDBConfig returns a config record from database using the unique name

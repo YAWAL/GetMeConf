@@ -41,7 +41,7 @@ func formatRequest(s string) string {
 }
 
 //func TestValidate(t *testing.T) {
-//	pcEmpty := PostgresConfig{Shema: "", DSN: "", MaxOpenedConnectionsToDb: 0, MaxIdleConnectionsToDb: 0, MbConnMaxLifetimeMinutes: 0}
+//	pcEmpty := PostgresConfig{Schema: "", DSN: "", MaxOpenedConnectionsToDb: 0, MaxIdleConnectionsToDb: 0, MbConnMaxLifetimeMinutes: 0}
 //	pcEmpty.validate()
 //	pcExp := postgresConfig{dbSchema: defaultDbScheme, dbPort: defaultDbPort, dbHost: defaultDbHost, dbUser: defaultDbUser, dbPassword: defaultDbPassword, dbName: defaultDbName, maxOpenedConnectionsToDb: defaultMaxOpenedConnectionsToDb, maxIdleConnectionsToDb: defaultMaxIdleConnectionsToDb, mbConnMaxLifetimeMinutes: defaultmbConnMaxLifetimeMinutes}
 //	assert.Equal(t, pcExp, pcEmpty)

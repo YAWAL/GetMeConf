@@ -35,8 +35,8 @@ install dep:
 
 tests:
 	echo "Tests"
-	go test ./service
-	go test ./repository
+	go test ./usecase -cover
+	go test ./repository -cover
 
 race:
 	echo "Race tests"
