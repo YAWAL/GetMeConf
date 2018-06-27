@@ -2,14 +2,12 @@ package usecase
 
 import (
 	"encoding/json"
-	"time"
-
 	"errors"
-
-	pb "github.com/YAWAL/GetMeConfAPI/api"
+	"time"
 
 	"github.com/YAWAL/GetMeConf/entity"
 	"github.com/YAWAL/GetMeConf/repository"
+	pb "github.com/YAWAL/GetMeConfAPI/api"
 	"github.com/patrickmn/go-cache"
 	"gopkg.in/validator.v2"
 )
@@ -20,6 +18,7 @@ const (
 	tsconfig   = "tsconfig"
 )
 
+// ConfigServer interface contains server functions.
 type ConfigServer interface {
 	GetConfigByName(name, confType string) (*pb.GetConfigResponce, error)
 	GetConfigsByType(confType string, stream pb.ConfigService_GetConfigsByTypeServer) error
@@ -28,25 +27,27 @@ type ConfigServer interface {
 	UpdateConfig(config *pb.Config) (*pb.Responce, error)
 }
 
-type configServerImpl struct {
+// ConfigServerImpl wraps the cache and a storage.
+type ConfigServerImpl struct {
 	configCache *cache.Cache
 	repo        repository.Storage
 }
 
+// ServiceConfiguration contains service parameters.
 type ServiceConfiguration struct {
 	Port      string
 	CacheConf *CacheConfiguration
 }
 
+// CacheConfiguration contains the cache parrameters.
 type CacheConfiguration struct {
 	CacheExpirationTime  int
 	CacheCleanupInterval int
 }
 
-// NewSharedConfigInteractor constructs new SharedConfigInteractor
-func NewConfigServer(s repository.Storage, sc *ServiceConfiguration) *configServerImpl {
-	//	repo, _ := repository.CreatePostgresStorage()
-	return &configServerImpl{
+// NewConfigServer constructs new ConfigServer
+func NewConfigServer(s repository.Storage, sc *ServiceConfiguration) *ConfigServerImpl {
+	return &ConfigServerImpl{
 		repo:        s,
 		configCache: initCache(sc),
 	}
@@ -60,7 +61,7 @@ func initCache(cc *ServiceConfiguration) *cache.Cache {
 }
 
 // GetConfigByName returns one config in GetConfigResponce message.
-func (s *configServerImpl) GetConfigByName(name, confType string) (*pb.GetConfigResponce, error) {
+func (s *ConfigServerImpl) GetConfigByName(name, confType string) (*pb.GetConfigResponce, error) {
 	configResponse, found := s.configCache.Get(name)
 	if found {
 		return configResponse.(*pb.GetConfigResponce), nil
@@ -95,8 +96,8 @@ func (s *configServerImpl) GetConfigByName(name, confType string) (*pb.GetConfig
 	return configResponse.(*pb.GetConfigResponce), nil
 }
 
-// GetConfigByName streams configs as GetConfigResponce messages.
-func (s *configServerImpl) GetConfigsByType(confType string, stream pb.ConfigService_GetConfigsByTypeServer) error {
+// GetConfigsByType streams configs as GetConfigResponce messages.
+func (s *ConfigServerImpl) GetConfigsByType(confType string, stream pb.ConfigService_GetConfigsByTypeServer) error {
 	switch confType {
 	case mongodb:
 		res, err := s.repo.FindAllMongoDBConfig()
@@ -146,8 +147,9 @@ func (s *configServerImpl) GetConfigsByType(confType string, stream pb.ConfigSer
 	return nil
 }
 
-// CreateConfig calls the function from database package to add a new config record to the database, returns response structure containing a status message.
-func (s *configServerImpl) CreateConfig(config *pb.Config) (*pb.Responce, error) {
+// CreateConfig calls the function from database package to add a new config record to the database, returns response
+// structure containing a status message.
+func (s *ConfigServerImpl) CreateConfig(config *pb.Config) (*pb.Responce, error) {
 	switch config.ConfigType {
 	case mongodb:
 		configStr := entity.Mongodb{}
@@ -201,8 +203,9 @@ func (s *configServerImpl) CreateConfig(config *pb.Config) (*pb.Responce, error)
 	}
 }
 
-// DeleteConfig removes config records from the database. If successful, returns the amount of deleted records in a status message of the response structure.
-func (s *configServerImpl) DeleteConfig(delConfigRequest *pb.DeleteConfigRequest) (*pb.Responce, error) {
+// DeleteConfig removes config records from the database. If successful, returns the amount of deleted records
+// in a status message of the response structure.
+func (s *ConfigServerImpl) DeleteConfig(delConfigRequest *pb.DeleteConfigRequest) (*pb.Responce, error) {
 	switch delConfigRequest.ConfigType {
 	case mongodb:
 		response, err := s.repo.DeleteMongoDBConfig(delConfigRequest.ConfigName)
@@ -231,7 +234,7 @@ func (s *configServerImpl) DeleteConfig(delConfigRequest *pb.DeleteConfigRequest
 }
 
 // UpdateConfig updates a config stored in database.
-func (s *configServerImpl) UpdateConfig(config *pb.Config) (*pb.Responce, error) {
+func (s *ConfigServerImpl) UpdateConfig(config *pb.Config) (*pb.Responce, error) {
 	var status string
 	switch config.ConfigType {
 	case mongodb:

@@ -53,26 +53,14 @@ var (
 	defaultCacheCleanupInterval = 10
 )
 
-// ServiceConfig structure contains the configuration information for the database.
-//type postgresConfig struct {
-//	dbSchema                 string
-//	dbHost                   string `yaml:"dbhost"`
-//	dbPort                   string `yaml:"dbport"`
-//	dbUser                   string `yaml:"dbUser"`
-//	dbPassword               string `yaml:"dbPassword"`
-//	dbName                   string `yaml:"dbName"`
-//	maxOpenedConnectionsToDb int    `yaml:"maxOpenedConnectionsToDb"`
-//	maxIdleConnectionsToDb   int    `yaml:"maxIdleConnectionsToDb"`
-//	mbConnMaxLifetimeMinutes int    `yaml:"mbConnMaxLifetimeMinutes"`
-//}
-
+// ConfigGRPCServer wraps the ConfigServer.
 type ConfigGRPCServer struct {
 	log          *zap.Logger
 	ctx          context.Context
 	configServer usecase.ConfigServer
 }
 
-// NewConfigGRPCServer returns a new instance of ConfigGRPCServer
+// NewConfigGRPCServer returns a new instance of ConfigGRPCServer.
 func NewConfigGRPCServer(ctx context.Context, log *zap.Logger, cs usecase.ConfigServer) *ConfigGRPCServer {
 	return &ConfigGRPCServer{
 		ctx:          ctx,
@@ -92,7 +80,7 @@ func (s *ConfigGRPCServer) GetConfigByName(ctx context.Context, nameRequest *pb.
 	return res, nil
 }
 
-// GetConfigByName streams configs as GetConfigResponce messages.
+// GetConfigsByType streams configs as GetConfigResponse messages.
 func (s *ConfigGRPCServer) GetConfigsByType(typeRequest *pb.GetConfigsByTypeRequest, stream pb.ConfigService_GetConfigsByTypeServer) error {
 	err := s.configServer.GetConfigsByType(typeRequest.ConfigType, stream)
 	if err != nil {
@@ -170,7 +158,10 @@ func Run() {
 		logger.Fatal("failed to init postgres db", zap.Error(err))
 	}
 
-	postgresStorage.Migrate()
+	err = postgresStorage.Migrate()
+	if err != nil {
+		logger.Fatal("failed to migrate", zap.Error(err))
+	}
 
 	server := usecase.NewConfigServer(postgresStorage, serviceConfiguration)
 

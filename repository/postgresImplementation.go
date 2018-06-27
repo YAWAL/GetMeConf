@@ -13,24 +13,12 @@ import (
 	"gopkg.in/gormigrate.v1"
 )
 
+// PostgresStorage wraps the database connection.
 type PostgresStorage struct {
 	DB *gorm.DB
 }
 
-// MongoDBConfigRepoImpl represents an implementation of a MongoDB configs repository.
-type mongoDBConfigRepoImpl struct {
-}
-
-// TsConfigRepoImpl represents an implementation of a Tsconfigs repository.
-type tsConfigRepoImpl struct {
-	DB *gorm.DB
-}
-
-// TempConfigRepoImpl represents an implementation of a Tempconfigs repository.
-type tempConfigRepoImpl struct {
-	DB *gorm.DB
-}
-
+// PostgresConfig represents a configuration for the postgres database connection
 type PostgresConfig struct {
 	Shema                    string
 	DSN                      string
@@ -59,39 +47,7 @@ func NewPostgresStorage(conf *PostgresConfig) (*PostgresStorage, error) {
 	}, err
 }
 
-//func (s *PostgresStorage) GetMongoDBRepo() MongoDBConfigRepo {
-//	return s.MongoDBRepo
-//}
-//
-//func (s *PostgresStorage) GetTsRepo() TsConfigRepo {
-//	return s.TsRepo
-//}
-//
-//func (s *PostgresStorage) GetTempRepo() TempConfigRepo {
-//	return s.TempRepo
-//}
-
-//// NewMongoDBConfigRepo returns a new MongoDB configs repository.
-//func NewMongoDBConfigRepo(db *gorm.DB) MongoDBConfigRepo {
-//	return &mongoDBConfigRepoImpl{
-//		DB: db,
-//	}
-//}
-//
-//// NewTempConfigRepo returns a new Tempconfigs repository.
-//func NewTempConfigRepo(db *gorm.DB) TempConfigRepo {
-//	return &tempConfigRepoImpl{
-//		DB: db,
-//	}
-//}
-//
-//// NewTsConfigRepo returns a new TsConfig repository.
-//func NewTsConfigRepo(db *gorm.DB) TsConfigRepo {
-//	return &tsConfigRepoImpl{
-//		DB: db,
-//	}
-//}
-
+// Migrate is used for a database schema migration.
 func (s *PostgresStorage) Migrate() error {
 	m := gormigrate.New(s.DB, gormigrate.DefaultOptions, []*gormigrate.Migration{
 		{
@@ -127,11 +83,7 @@ func (s *PostgresStorage) Migrate() error {
 		},
 	})
 
-	err := m.Migrate()
-	if err != nil {
-		return err
-	}
-	return err
+	return m.Migrate()
 }
 
 //FindMongoDBConfig returns a config record from database using the unique name
@@ -156,7 +108,7 @@ func (s *PostgresStorage) FindAllMongoDBConfig() ([]entity.Mongodb, error) {
 
 //SaveMongoDBConfig saves new config record to the database
 func (s *PostgresStorage) SaveMongoDBConfig(config *entity.Mongodb) (string, error) {
-	err := s.DB.Create(config).Error
+	_, err := s.DB.Create(config).Rows()
 	if err != nil {
 		return "", err
 	}
@@ -212,7 +164,7 @@ func (s *PostgresStorage) FindAllTempConfig() ([]entity.Tempconfig, error) {
 
 //SaveTempConfig saves new config record to the database
 func (s *PostgresStorage) SaveTempConfig(config *entity.Tempconfig) (string, error) {
-	err := s.DB.Create(config).Error
+	_, err := s.DB.Create(config).Rows()
 	if err != nil {
 		return "", err
 	}
@@ -268,7 +220,7 @@ func (s *PostgresStorage) FindAllTsConfig() ([]entity.Tsconfig, error) {
 
 //SaveTsConfig saves new config record to the database
 func (s *PostgresStorage) SaveTsConfig(config *entity.Tsconfig) (string, error) {
-	err := s.DB.Create(config).Error
+	_, err := s.DB.Create(config).Rows()
 	if err != nil {
 		return "", err
 	}
