@@ -40,56 +40,6 @@ func formatRequest(s string) string {
 	return fmt.Sprintf("^%s$", regexp.QuoteMeta(s))
 }
 
-//func TestValidate(t *testing.T) {
-//	pcEmpty := PostgresConfig{Schema: "", DSN: "", MaxOpenedConnectionsToDb: 0, MaxIdleConnectionsToDb: 0, MbConnMaxLifetimeMinutes: 0}
-//	pcEmpty.validate()
-//	pcExp := postgresConfig{dbSchema: defaultDbScheme, dbPort: defaultDbPort, dbHost: defaultDbHost, dbUser: defaultDbUser, dbPassword: defaultDbPassword, dbName: defaultDbName, maxOpenedConnectionsToDb: defaultMaxOpenedConnectionsToDb, maxIdleConnectionsToDb: defaultMaxIdleConnectionsToDb, mbConnMaxLifetimeMinutes: defaultmbConnMaxLifetimeMinutes}
-//	assert.Equal(t, pcExp, pcEmpty)
-//}
-
-//func TestInitPostgresConfig(t *testing.T) {
-//	logger, _ = zap.NewProduction()
-//	os.Setenv("PDB_SCHEME", "testSchema")
-//	os.Setenv("PDB_HOST", "testHost")
-//	os.Setenv("PDB_PORT", "testPort")
-//	os.Setenv("PDB_USER", "testUser")
-//	os.Setenv("PDB_PASSWORD", "testPass")
-//	os.Setenv("PDB_NAME", "testName")
-//	os.Setenv("MAX_OPENED_CONNECTIONS_TO_DB", "test")
-//	os.Setenv("MAX_IDLE_CONNECTIONS_TO_DB", "test")
-//	os.Setenv("MB_CONN_MAX_LIFETIME_MINUTES", "test")
-//	pcInit := initPostgresConfig()
-//	pcExp := postgresConfig{dbSchema: "testSchema", dbPort: "testPort", dbHost: "testHost", dbUser: "testUser", dbPassword: "testPass", dbName: "testName", maxOpenedConnectionsToDb: 0, maxIdleConnectionsToDb: 0, mbConnMaxLifetimeMinutes: 0}
-//	assert.Equal(t, &pcExp, pcInit)
-//}
-
-//func TestNewMongoDBConfigRepo(t *testing.T) {
-//	_, db, _ := newDB()
-//	exp := mongoDBConfigRepoImpl{
-//		DB: db,
-//	}
-//	result := NewMongoDBConfigRepo(db)
-//	assert.Equal(t, &exp, result)
-//}
-//
-//func TestNewTsConfigConfigRepo(t *testing.T) {
-//	_, db, _ := newDB()
-//	exp := tsConfigRepoImpl{
-//		DB: db,
-//	}
-//	result := NewTsConfigRepo(db)
-//	assert.Equal(t, &exp, result)
-//}
-//
-//func TestNewTempConfigConfigRepo(t *testing.T) {
-//	_, db, _ := newDB()
-//	exp := tempConfigRepoImpl{
-//		DB: db,
-//	}
-//	result := NewTempConfigRepo(db)
-//	assert.Equal(t, &exp, result)
-//}
-
 func TestPostgresStorage_FindMongoDBConfig(t *testing.T) {
 	m, db, _ := newDB()
 	repo := PostgresStorage{DB: db}
@@ -231,13 +181,13 @@ func TestPostgresStorage_SaveMongoDBConfig(t *testing.T) {
 	mockRepo := PostgresStorage{DB: db}
 	mongodbConfig := entity.Mongodb{Domain: "testDomain", Mongodb: true, Host: "testHost", Port: "testPort"}
 
-	rows := sqlmock.NewRows([]string{"testDomain", "true", "testHost", "testPort"})
+	//rows := sqlmock.NewRows([]string{"testDomain", "true", "testHost", "testPort"})
 
-	m.ExpectQuery(formatRequest("INSERT INTO \"mongodbs\" (\"domain\",\"mongodb\",\"host\",\"port\") "+
+	m.ExpectExec(formatRequest("INSERT INTO \"mongodbs\" (\"domain\",\"mongodb\",\"host\",\"port\") "+
 		"VALUES ($1,$2,$3,$4) RETURNING \"mongodbs\".\"domain\"")).
-		WithArgs("testDomain", true, "testHost", "testPort").WillReturnRows(rows)
-	m.ExpectQuery(formatRequest("SELECT * FROM \"mongodbs\" WHERE \"mongodbs\".\"domain\" = $1")).
-		WithArgs("testDomain").WillReturnRows(rows)
+		WithArgs("testDomain", true, "testHost", "testPort").WillReturnResult(sqlmock.NewResult(0, 1))
+	//m.ExpectQuery(formatRequest("SELECT * FROM \"mongodbs\" WHERE \"mongodbs\".\"domain\" = $1")).
+	//	WithArgs("testDomain").WillReturnRows(rows)
 	result, err := mockRepo.SaveMongoDBConfig(&mongodbConfig)
 	if err != nil {
 		t.Error("error during unit testing: ", err)

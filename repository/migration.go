@@ -22,7 +22,7 @@ var serviceMigrations = []*gormigrate.Migration{
 			).Error
 		},
 	},
-	{ID: "20181906",
+	{ID: "20181907",
 		Migrate: func(tx *gorm.DB) error {
 			return tx.AutoMigrate(
 				&entity.Tempconfig{},
@@ -34,7 +34,7 @@ var serviceMigrations = []*gormigrate.Migration{
 			).Error
 		},
 	},
-	{ID: "20181906",
+	{ID: "20181908",
 		Migrate: func(tx *gorm.DB) error {
 			return tx.AutoMigrate(
 				&entity.Tsconfig{},
@@ -48,13 +48,13 @@ var serviceMigrations = []*gormigrate.Migration{
 	},
 }
 
-// RunMigrations - run migration of data for application from svcMigrations
+// RunMigrations - run migration of data.
 func RunMigrations(db *gorm.DB) error {
 	//	db.LogMode(c.Config.Debug())
 	return gormigrate.New(db, gormigrate.DefaultOptions, serviceMigrations).Migrate()
 }
 
-// RollbackMigrations rollbacks all migrations from svcMigrations
+// RollbackMigrations rollbacks all migrations.
 func RollbackMigrations(db *gorm.DB) (err error) {
 	//	db.LogMode(c.Config.Debug())
 	var errs gorm.Errors

@@ -12,6 +12,8 @@ import (
 	_ "github.com/lib/pq"
 )
 
+const okResult = "OK"
+
 // PostgresStorage wraps the database connection.
 type PostgresStorage struct {
 	DB *gorm.DB
@@ -23,10 +25,10 @@ type PostgresConfig struct {
 	DSN                      string
 	MaxOpenedConnectionsToDb int
 	MaxIdleConnectionsToDb   int
-	MbConnMaxLifetimeMinutes int
+	ConnMaxLifetimeMinutes   int
 }
 
-// InitPostgresDB initiates database connection using environmental variables.
+// initPostgresDB initiates database connection using environmental variables.
 func initPostgresDB(conf *PostgresConfig) (db *gorm.DB, err error) {
 	db, err = gorm.Open(conf.Schema, conf.DSN)
 	if err != nil {
@@ -34,7 +36,7 @@ func initPostgresDB(conf *PostgresConfig) (db *gorm.DB, err error) {
 	}
 	db.DB().SetMaxOpenConns(conf.MaxOpenedConnectionsToDb)
 	db.DB().SetMaxIdleConns(conf.MaxIdleConnectionsToDb)
-	db.DB().SetConnMaxLifetime(time.Minute * time.Duration(conf.MbConnMaxLifetimeMinutes))
+	db.DB().SetConnMaxLifetime(time.Minute * time.Duration(conf.ConnMaxLifetimeMinutes))
 	return db, nil
 }
 
@@ -58,21 +60,22 @@ func (s *PostgresStorage) FindMongoDBConfig(configName string) (*entity.Mongodb,
 
 //FindAllMongoDBConfig returns all config record of one type from database
 func (s *PostgresStorage) FindAllMongoDBConfig() ([]entity.Mongodb, error) {
-	var confSlice []entity.Mongodb
-	err := s.DB.Find(&confSlice).Error
+	var mongoConfigs []entity.Mongodb
+	err := s.DB.Find(&mongoConfigs).Error
 	if err != nil {
 		return nil, err
 	}
-	return confSlice, nil
+	return mongoConfigs, nil
 }
 
 //SaveMongoDBConfig saves new config record to the database
 func (s *PostgresStorage) SaveMongoDBConfig(config *entity.Mongodb) (string, error) {
-	_, err := s.DB.Create(config).Rows()
+	s.DB.LogMode(true)
+	err := s.DB.Create(config).Error
 	if err != nil {
 		return "", err
 	}
-	return "OK", nil
+	return okResult, nil
 }
 
 //DeleteMongoDBConfig removes config record from database
@@ -97,12 +100,12 @@ func (s *PostgresStorage) UpdateMongoDBConfig(newConfig *entity.Mongodb) (string
 		if err != nil {
 			return "", err
 		}
-		return "OK", nil
+		return okResult, nil
 	}
 	return "", errors.New("fields are empty")
 }
 
-//FindTempConfig returns a config record from database using the unique name
+//FindTempConfig returns a config record from database using the unique name.
 func (s *PostgresStorage) FindTempConfig(configName string) (*entity.Tempconfig, error) {
 	result := entity.Tempconfig{}
 	err := s.DB.Where("rest_api_root = ?", configName).Find(&result).Error
@@ -112,26 +115,26 @@ func (s *PostgresStorage) FindTempConfig(configName string) (*entity.Tempconfig,
 	return &result, nil
 }
 
-//FindAllTempConfig returns all config record of one type from database
+//FindAllTempConfig returns all config record of one type from database.
 func (s *PostgresStorage) FindAllTempConfig() ([]entity.Tempconfig, error) {
-	var confSlice []entity.Tempconfig
-	err := s.DB.Find(&confSlice).Error
+	var tempConfigs []entity.Tempconfig
+	err := s.DB.Find(&tempConfigs).Error
 	if err != nil {
 		return nil, err
 	}
-	return confSlice, nil
+	return tempConfigs, nil
 }
 
-//SaveTempConfig saves new config record to the database
+//SaveTempConfig saves new config record to the database.
 func (s *PostgresStorage) SaveTempConfig(config *entity.Tempconfig) (string, error) {
-	_, err := s.DB.Create(config).Rows()
+	err := s.DB.Create(config).Error
 	if err != nil {
 		return "", err
 	}
-	return "OK", nil
+	return okResult, nil
 }
 
-//DeleteTempConfig removes config record from database
+//DeleteTempConfig removes config record from database.
 func (s *PostgresStorage) DeleteTempConfig(configName string) (string, error) {
 	rowsAffected := s.DB.Delete(entity.Tempconfig{}, "rest_api_root = ?", configName).RowsAffected
 	if rowsAffected < 1 {
@@ -140,7 +143,7 @@ func (s *PostgresStorage) DeleteTempConfig(configName string) (string, error) {
 	return fmt.Sprintf("deleted %d row(s)", rowsAffected), nil
 }
 
-//UpdateTempConfig updates a record in database, rewriting the fields if string fields are not empty
+//UpdateTempConfig updates a record in database, rewriting the fields if string fields are not empty.
 func (s *PostgresStorage) UpdateTempConfig(newConfig *entity.Tempconfig) (string, error) {
 	var persistedConfig entity.Tempconfig
 	err := s.DB.Where("rest_api_root = ?", newConfig.RestApiRoot).Find(&persistedConfig).Error
@@ -153,12 +156,12 @@ func (s *PostgresStorage) UpdateTempConfig(newConfig *entity.Tempconfig) (string
 		if err != nil {
 			return "", err
 		}
-		return "OK", nil
+		return okResult, nil
 	}
 	return "", errors.New("fields are empty")
 }
 
-//FindTsConfig returns a config record from database using the unique name
+//FindTsConfig returns a config record from database using the unique name.
 func (s *PostgresStorage) FindTsConfig(configName string) (*entity.Tsconfig, error) {
 	result := entity.Tsconfig{}
 	err := s.DB.Where("module = ?", configName).Find(&result).Error
@@ -168,26 +171,26 @@ func (s *PostgresStorage) FindTsConfig(configName string) (*entity.Tsconfig, err
 	return &result, nil
 }
 
-//FindAllTsConfig returns all config record of one type from database
+//FindAllTsConfig returns all config record of one type from database.
 func (s *PostgresStorage) FindAllTsConfig() ([]entity.Tsconfig, error) {
-	var confSlice []entity.Tsconfig
-	err := s.DB.Find(&confSlice).Error
+	var tsConfigs []entity.Tsconfig
+	err := s.DB.Find(&tsConfigs).Error
 	if err != nil {
 		return nil, err
 	}
-	return confSlice, nil
+	return tsConfigs, nil
 }
 
-//SaveTsConfig saves new config record to the database
+//SaveTsConfig saves new config record to the database.
 func (s *PostgresStorage) SaveTsConfig(config *entity.Tsconfig) (string, error) {
 	_, err := s.DB.Create(config).Rows()
 	if err != nil {
 		return "", err
 	}
-	return "OK", nil
+	return okResult, nil
 }
 
-//DeleteTsConfig removes config record from database
+//DeleteTsConfig removes config record from database.
 func (s *PostgresStorage) DeleteTsConfig(configName string) (string, error) {
 	rowsAffected := s.DB.Delete(entity.Tsconfig{}, "module = ?", configName).RowsAffected
 	if rowsAffected < 1 {
@@ -196,7 +199,7 @@ func (s *PostgresStorage) DeleteTsConfig(configName string) (string, error) {
 	return fmt.Sprintf("deleted %d row(s)", rowsAffected), nil
 }
 
-//UpdateTsConfig updates a record in database, rewriting the fields if string fields are not empty
+//UpdateTsConfig updates a record in database, rewriting the fields if string fields are not empty.
 func (s *PostgresStorage) UpdateTsConfig(newConfig *entity.Tsconfig) (string, error) {
 	var persistedConfig entity.Tsconfig
 	err := s.DB.Where("module = ?", newConfig.Module).Find(&persistedConfig).Error
@@ -209,7 +212,7 @@ func (s *PostgresStorage) UpdateTsConfig(newConfig *entity.Tsconfig) (string, er
 		if err != nil {
 			return "", err
 		}
-		return "OK", nil
+		return okResult, nil
 	}
 	return "", errors.New("fields are empty")
 }

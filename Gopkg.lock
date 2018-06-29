@@ -176,7 +176,7 @@
   name = "gopkg.in/gormigrate.v1"
   packages = ["."]
   revision = "21b0b93e8253d575d9185974835423f98d30158d"
-  version = "v1.2.0"
+  version = "v1.3.0"
 
 [[projects]]
   branch = "v2"

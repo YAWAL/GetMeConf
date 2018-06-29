@@ -14,37 +14,36 @@ endif
 
 all: dependencies build
 
-.PHONY: build run build dependencies dep tests race
+.PHONY: run build dependencies dep tests race lint docker-build clean coverage coveragehtml
 
 build:
-	echo "Build"
+	@echo "Build"
 	go build -o ${GOPATH}/src/github.com/YAWAL/GetMeConf/bin/service .
 
-run:
-	echo "Running service"
-	go build -o ${GOPATH}/src/github.com/YAWAL/GetMeConf/bin/service .
+run: build
+	@echo "Running service"
 	./bin/service
 
 dependencies:
-	echo "Installing dependencies"
+	@echo "Installing dependencies"
 	dep ensure
 
 install dep:
-	echo    "Installing dep"
+	@echo    "Installing dep"
 	curl    https://raw.githubusercontent.com/golang/dep/master/install.sh | sh
 
 tests:
-	echo "Tests"
+	@echo "Tests"
 	go test ./usecase -cover
 	go test ./repository -cover
 
 race:
-	echo "Race tests"
+	@echo "Race tests"
 	go test ./service -race
 	go test ./repository -race
 
 lint:
-	echo "Running linters"
+	@echo "Running linters"
 	gometalinter --vendor --tests --skip=mock --exclude='_gen.go' --deadline=1500s --checkstyle --sort=linter ./... > static-analysis.xml
 
 docker-build:
@@ -53,7 +52,7 @@ docker-build:
 	docker run --net=${DOCKER_NET_DRIVER} -p ${SERVICE_PORT}:${SERVICE_PORT} --env-file .env configservice
 
 clean:
-	echo "Removing previous build"
+	@echo "Removing previous build"
 	rm -rf ${GOPATH}/src/github.com/YAWAL/GetMeConf/bin/service
 
 coverage:

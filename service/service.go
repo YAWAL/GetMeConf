@@ -21,32 +21,25 @@ import (
 const (
 	pdbScheme = "PDB_SCHEME"
 	pdbDSN    = "PDB_DSN"
-	//pdbHost             	= "PDB_HOST"
-	//pdbPort             	= "PDB_PORT"
-	//pdbUser             	= "PDB_USER"
-	//pdbPassword         	= "PDB_PASSWORD"
-	//pdbName             	= "PDB_NAME"
-	maxOpCon            = "MAX_OPENED_CONNECTIONS_TO_DB"
-	maxIdleCon          = "MAX_IDLE_CONNECTIONS_TO_DB"
-	vConnMaxLifetimeMin = "MB_CONN_MAX_LIFETIME_MINUTES"
+
+	maxOpCon           = "MAX_OPENED_CONNECTIONS_TO_DB"
+	maxIdleCon         = "MAX_IDLE_CONNECTIONS_TO_DB"
+	connMaxLifetimeMin = "CONN_MAX_LIFETIME_MINUTES"
 
 	servicePort     = "SERVICE_PORT"
 	cacheExpTime    = "CACHE_EXPIRATION_TIME"
 	cacheCleanupInt = "CACHE_CLEANUP_INTERVAL"
+
+	errReadenvVar = "error during reading env. variable"
 )
 
 var (
 	defaultDbScheme = "postgres"
 	defaultDbDSN    = "postgres://dlxifkbx:L7Cey-ucPY4L3T6VFlFdNykNE4jO0VjV@horton.elephantsql.com:5432/dlxifkbx?sslmode=disable"
-	//defaultDbHost     = "horton.elephantsql.com"
-	//defaultDbPort     = "5432"
-	//defaultDbUser     = "dlxifkbx"
-	//defaultDbPassword = "L7Cey-ucPY4L3T6VFlFdNykNE4jO0VjV"
-	//defaultDbName     = "dlxifkbx"
 
 	defaultMaxOpenedConnectionsToDb = 5
 	defaultMaxIdleConnectionsToDb   = 0
-	defaultmbConnMaxLifetimeMinutes = 30
+	defaultConnMaxLifetimeMinutes   = 30
 
 	defaultPort                 = "3000"
 	defaultCacheExpirationTime  = 5
@@ -73,7 +66,7 @@ func NewConfigGRPCServer(ctx context.Context, log *zap.Logger, cs usecase.Config
 func (s *ConfigGRPCServer) GetConfigByName(ctx context.Context, nameRequest *pb.GetConfigByNameRequest) (*pb.GetConfigResponce, error) {
 	res, err := s.configServer.GetConfigByName(nameRequest.ConfigName, nameRequest.ConfigType)
 	if err != nil {
-		msg := "couldn't get config"
+		msg := "couldn't get config" + nameRequest.ConfigType
 		s.log.Error(err.Error(), zap.String("error", msg))
 		return nil, errortype.GrpcError(err, msg)
 	}
@@ -84,7 +77,7 @@ func (s *ConfigGRPCServer) GetConfigByName(ctx context.Context, nameRequest *pb.
 func (s *ConfigGRPCServer) GetConfigsByType(typeRequest *pb.GetConfigsByTypeRequest, stream pb.ConfigService_GetConfigsByTypeServer) error {
 	err := s.configServer.GetConfigsByType(typeRequest.ConfigType, stream)
 	if err != nil {
-		msg := "couldn't get configs"
+		msg := "couldn't get configs" + typeRequest.ConfigType
 		s.log.Error(err.Error(), zap.String("error", msg))
 		return errortype.GrpcError(err, msg)
 	}
@@ -96,7 +89,7 @@ func (s *ConfigGRPCServer) GetConfigsByType(typeRequest *pb.GetConfigsByTypeRequ
 func (s *ConfigGRPCServer) CreateConfig(ctx context.Context, config *pb.Config) (*pb.Responce, error) {
 	res, err := s.configServer.CreateConfig(config)
 	if err != nil {
-		msg := "couldn't create config"
+		msg := "couldn't create config" + config.ConfigType
 		s.log.Error(err.Error(), zap.String("error", msg))
 		return nil, errortype.GrpcError(err, msg)
 	}
@@ -108,7 +101,7 @@ func (s *ConfigGRPCServer) CreateConfig(ctx context.Context, config *pb.Config) 
 func (s *ConfigGRPCServer) DeleteConfig(ctx context.Context, delConfigRequest *pb.DeleteConfigRequest) (*pb.Responce, error) {
 	res, err := s.configServer.DeleteConfig(delConfigRequest)
 	if err != nil {
-		msg := "couldn't delete config"
+		msg := "couldn't delete config" + delConfigRequest.ConfigType
 		s.log.Error(err.Error(), zap.String("error", msg))
 		return nil, errortype.GrpcError(err, msg)
 	}
@@ -119,7 +112,7 @@ func (s *ConfigGRPCServer) DeleteConfig(ctx context.Context, delConfigRequest *p
 func (s *ConfigGRPCServer) UpdateConfig(ctx context.Context, config *pb.Config) (*pb.Responce, error) {
 	res, err := s.configServer.UpdateConfig(config)
 	if err != nil {
-		msg := "couldn't update config"
+		msg := "couldn't update config" + config.ConfigType
 		s.log.Error(err.Error(), zap.String("error", msg))
 		return nil, errortype.GrpcError(err, msg)
 	}
@@ -129,7 +122,7 @@ func (s *ConfigGRPCServer) UpdateConfig(ctx context.Context, config *pb.Config) 
 func initServiceConfiguration(logger *zap.Logger) *usecase.ServiceConfiguration {
 	port := os.Getenv(servicePort)
 	if port == "" {
-		logger.Info("error during reading env. variable", zap.String("default value is used", defaultPort))
+		logger.Info(errReadenvVar, zap.String("default value is used", defaultPort))
 		port = defaultPort
 	}
 	cacheConfiguration := initCacheConfiguration(logger)
@@ -158,9 +151,11 @@ func Run() {
 		logger.Fatal("failed to init postgres db", zap.Error(err))
 	}
 
-	err = repository.RunMigrations(postgresStorage.DB)
-	if err != nil {
-		logger.Fatal("failed to migrate", zap.Error(err))
+	if err = repository.RunMigrations(postgresStorage.DB); err != nil {
+		logger.Error("failed to migrate", zap.Error(err))
+		if err = repository.RollbackMigrations(postgresStorage.DB); err != nil {
+			logger.Fatal("failed to rollback migrations", zap.Error(err))
+		}
 	}
 
 	server := usecase.NewConfigServer(postgresStorage, serviceConfiguration)
@@ -191,44 +186,25 @@ func Run() {
 
 func validatePostgresConfig(logger *zap.Logger, c *repository.PostgresConfig) {
 	if c.Schema == "" {
-		logger.Info("error during reading env. variable", zap.String("default value is used ", defaultDbScheme))
+		logger.Info(errReadenvVar, zap.String("default value is used ", defaultDbScheme))
 		c.Schema = defaultDbScheme
 	}
 	if c.DSN == "" {
-		logger.Info("error during reading env. variable", zap.String("default value is used ", defaultDbDSN))
+		logger.Info(errReadenvVar, zap.String("default value is used ", defaultDbDSN))
 		c.DSN = defaultDbDSN
 	}
-	//if c.dbHost == "" {
-	//	logger.Info("error during reading env. variable", zap.String("default value is used ", defaultDbHost))
-	//	c.dbHost = defaultDbHost
-	//}
-	//if c.dbPort == "" {
-	//	logger.Info("error during reading env. variable", zap.String("default value is used ", defaultDbPort))
-	//	c.dbPort = defaultDbPort
-	//}
-	//if c.dbUser == "" {
-	//	logger.Info("error during reading env. variable", zap.String("default value is used ", defaultDbUser))
-	//	c.dbUser = defaultDbUser
-	//}
-	//if c.dbPassword == "" {
-	//	logger.Info("error during reading env. variable", zap.String("default value is used ", defaultDbPassword))
-	//	c.dbPassword = defaultDbPassword
-	//}
-	//if c.dbName == "" {
-	//	logger.Info("error during reading env. variable", zap.String("default value is used ", defaultDbName))
-	//	c.dbName = defaultDbName
-	//}
+
 	if c.MaxOpenedConnectionsToDb == 0 {
-		logger.Info("maxOpenedConnectionsToDb = 0", zap.Int("default value is used ", defaultMaxOpenedConnectionsToDb))
+		logger.Info("MaxOpenedConnectionsToDb = 0", zap.Int("default value is used ", defaultMaxOpenedConnectionsToDb))
 		c.MaxOpenedConnectionsToDb = defaultMaxOpenedConnectionsToDb
 	}
 	if c.MaxIdleConnectionsToDb == 0 {
-		logger.Info("maxIdleConnectionsToDb = 0", zap.Int("default value is used ", defaultMaxIdleConnectionsToDb))
+		logger.Info("MaxIdleConnectionsToDb = 0", zap.Int("default value is used ", defaultMaxIdleConnectionsToDb))
 		c.MaxIdleConnectionsToDb = defaultMaxIdleConnectionsToDb
 	}
-	if c.MbConnMaxLifetimeMinutes == 0 {
-		logger.Info("mbConnMaxLifetimeMinutes = 0", zap.Int("default value is used ", defaultmbConnMaxLifetimeMinutes))
-		c.MbConnMaxLifetimeMinutes = defaultmbConnMaxLifetimeMinutes
+	if c.ConnMaxLifetimeMinutes == 0 {
+		logger.Info("ConnMaxLifetimeMinutes = 0", zap.Int("default value is used ", defaultConnMaxLifetimeMinutes))
+		c.ConnMaxLifetimeMinutes = defaultConnMaxLifetimeMinutes
 	}
 }
 
@@ -236,23 +212,19 @@ func initPostgresConfig(logger *zap.Logger) *repository.PostgresConfig {
 	c := new(repository.PostgresConfig)
 	c.Schema = os.Getenv(pdbScheme)
 	c.DSN = os.Getenv(pdbDSN)
-	//c.dbHost = os.Getenv(pdbHost)
-	//c.dbPort = os.Getenv(pdbPort)
-	//c.dbUser = os.Getenv(pdbUser)
-	//c.dbPassword = os.Getenv(pdbPassword)
-	//c.dbName = os.Getenv(pdbName)
+
 	var err error
 	c.MaxOpenedConnectionsToDb, err = strconv.Atoi(os.Getenv(maxOpCon))
 	if err != nil {
-		logger.Info("error during reading env. variable. Could not convert from string to int", zap.Error(err))
+		logger.Info(errReadenvVar, zap.Error(err))
 	}
 	c.MaxIdleConnectionsToDb, err = strconv.Atoi(os.Getenv(maxIdleCon))
 	if err != nil {
-		logger.Info("error during reading env. variable. Could not convert from string to int", zap.Error(err))
+		logger.Info(errReadenvVar, zap.Error(err))
 	}
-	c.MbConnMaxLifetimeMinutes, err = strconv.Atoi(os.Getenv(vConnMaxLifetimeMin))
+	c.ConnMaxLifetimeMinutes, err = strconv.Atoi(os.Getenv(connMaxLifetimeMin))
 	if err != nil {
-		logger.Info("error during reading env. variable. Could not convert from string to int", zap.Error(err))
+		logger.Info(errReadenvVar, zap.Error(err))
 	}
 	validatePostgresConfig(logger, c)
 	return c
