@@ -34,8 +34,8 @@ install dep:
 
 tests:
 	@echo "Tests"
-	go test ./usecase -cover
-	go test ./repository -cover
+	go test -race ./usecase -cover
+	go test -race ./repository -cover
 
 race:
 	@echo "Race tests"

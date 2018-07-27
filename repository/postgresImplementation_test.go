@@ -24,15 +24,15 @@ var errDBDelete = errors.New("could not delete from database")
 func newDB() (sqlmock.Sqlmock, *gorm.DB, error) {
 	db, mock, err := sqlmock.New()
 	if err != nil {
-		logger.Fatal("can not create sql mock " + err.Error())
+		logger.Error("can not create sql mock " + err.Error())
 		return nil, nil, err
 	}
 	gormDB, err := gorm.Open("postgres", db)
 	if err != nil {
-		logger.Fatal("can not open gorm connection " + err.Error())
+		logger.Error("can not open gorm connection " + err.Error())
 		return nil, nil, err
 	}
-	gormDB.LogMode(true)
+	gormDB.LogMode(false)
 	return mock, gormDB, nil
 }
 
@@ -73,7 +73,6 @@ func TestPostgresStorage_FindTsConfig(t *testing.T) {
 	if err != nil {
 		t.Error("error during unit testing: ", err)
 	}
-	fmt.Println(returnedTsConfigs)
 	assert.Equal(t, &tsConfig, returnedTsConfigs)
 
 	configName := "notExistingConfig"
@@ -98,7 +97,6 @@ func TestPostgresStorage_FindTempConfig(t *testing.T) {
 	if err != nil {
 		t.Error("error during unit testing: ", err)
 	}
-	fmt.Println(returnedTempConfigs)
 	assert.Equal(t, &tempConfig, returnedTempConfigs)
 
 	configName := "notExistingConfig"
@@ -165,7 +163,6 @@ func TestPostgresStorage_FindAllTempConfig(t *testing.T) {
 	if err != nil {
 		t.Error("error during unit testing: ", err)
 	}
-	fmt.Println(returnedTempConfigs)
 	assert.Equal(t, expTempConfigs, returnedTempConfigs)
 
 	expectedError := errDB
@@ -181,13 +178,27 @@ func TestPostgresStorage_SaveMongoDBConfig(t *testing.T) {
 	mockRepo := PostgresStorage{DB: db}
 	mongodbConfig := entity.Mongodb{Domain: "testDomain", Mongodb: true, Host: "testHost", Port: "testPort"}
 
-	//rows := sqlmock.NewRows([]string{"testDomain", "true", "testHost", "testPort"})
+	m.ExpectExec(formatRequest("INSERT INTO \"mongodbs\" (\"domain\",\"mongodb\",\"host\",\"port\") "+
+		"VALUES ($1,$2,$3,$4)")).
+		WithArgs("testDomain", true, "testHost", "testPort").
+		WillReturnResult(sqlmock.NewResult(0, 1))
+	result, err := mockRepo.SaveMongoDBConfig(&mongodbConfig)
+	if err != nil {
+		t.Error("error during unit testing: ", err)
+	}
+	assert.Equal(t, "OK", result)
+
+}
+
+func TestPostgresStorage_SaveMongoDBConfigPointer(t *testing.T) {
+	m, db, _ := newDB()
+	mockRepo := PostgresStorage{DB: db}
+	mongodbConfig := entity.Mongodb{Domain: "testDomain", Mongodb: true, Host: "testHost", Port: "testPort"}
 
 	m.ExpectExec(formatRequest("INSERT INTO \"mongodbs\" (\"domain\",\"mongodb\",\"host\",\"port\") "+
-		"VALUES ($1,$2,$3,$4) RETURNING \"mongodbs\".\"domain\"")).
-		WithArgs("testDomain", true, "testHost", "testPort").WillReturnResult(sqlmock.NewResult(0, 1))
-	//m.ExpectQuery(formatRequest("SELECT * FROM \"mongodbs\" WHERE \"mongodbs\".\"domain\" = $1")).
-	//	WithArgs("testDomain").WillReturnRows(rows)
+		"VALUES ($1,$2,$3,$4)")).
+		WithArgs("testDomain", true, "testHost", "testPort").
+		WillReturnResult(sqlmock.NewResult(0, 1))
 	result, err := mockRepo.SaveMongoDBConfig(&mongodbConfig)
 	if err != nil {
 		t.Error("error during unit testing: ", err)
@@ -202,12 +213,10 @@ func TestPostgresStorage_SaveMongoDBConfigWithError(t *testing.T) {
 
 	mongodbConfigErr := entity.Mongodb{Domain: "testDomainError", Mongodb: true, Host: "testHost", Port: "testPort"}
 	expectedError := errors.New("db error")
-	m.ExpectQuery(formatRequest("INSERT INTO \"mongodbs\" (\"domain\",\"mongodb\",\"host\",\"port\") "+
-		"VALUES ($1,$2,$3,$4) RETURNING \"mongodbs\".\"domain\"")).
+	m.ExpectExec(formatRequest("INSERT INTO \"mongodbs\" (\"domain\",\"mongodb\",\"host\",\"port\") "+
+		"VALUES ($1,$2,$3,$4)")).
 		WithArgs("testDomainError", true, "testHost", "testPort").
 		WillReturnError(expectedError)
-	m.ExpectQuery(formatRequest("SELECT * FROM \"mongodbs\" WHERE \"mongodbs\".\"domain\" = $1")).
-		WithArgs("testDomainError").WillReturnError(expectedError)
 	_, returnedErr := mockRepo.SaveMongoDBConfig(&mongodbConfigErr)
 	if assert.Error(t, returnedErr) {
 		assert.Equal(t, expectedError, returnedErr)
@@ -220,14 +229,10 @@ func TestPostgresStorage_SaveTsConfig(t *testing.T) {
 
 	tsConfig := entity.Tsconfig{Module: "testModule", Target: "testTarget", SourceMap: true, Excluding: 1}
 
-	rows := sqlmock.NewRows([]string{"testModule", "testTarget", "true", "1"})
-
-	m.ExpectQuery(formatRequest("INSERT INTO \"tsconfigs\" (\"module\",\"target\",\"source_map\",\"excluding\") "+
-		"VALUES ($1,$2,$3,$4) RETURNING \"tsconfigs\".\"module\"")).
+	m.ExpectExec(formatRequest("INSERT INTO \"tsconfigs\" (\"module\",\"target\",\"source_map\",\"excluding\") "+
+		"VALUES ($1,$2,$3,$4)")).
 		WithArgs("testModule", "testTarget", true, 1).
-		WillReturnRows(rows)
-	m.ExpectQuery(formatRequest("SELECT * FROM \"tsconfigs\" WHERE \"tsconfigs\".\"module\" = $1")).
-		WithArgs("testModule").WillReturnRows(rows)
+		WillReturnResult(sqlmock.NewResult(0, 1))
 	result, err := mockRepo.SaveTsConfig(&tsConfig)
 	if err != nil {
 		t.Error("error during unit testing: ", err)
@@ -242,12 +247,10 @@ func TestPostgresStorage_SaveTsConfigWithError(t *testing.T) {
 
 	tsConfigErr := entity.Tsconfig{Module: "testModuleError", Target: "testTarget", SourceMap: true, Excluding: 1}
 	expectedError := errors.New("db error")
-	m.ExpectQuery(formatRequest("INSERT INTO \"tsconfigs\" (\"module\",\"target\",\"source_map\",\"excluding\") "+
-		"VALUES ($1,$2,$3,$4) RETURNING \"tsconfigs\".\"module\"")).
+	m.ExpectExec(formatRequest("INSERT INTO \"tsconfigs\" (\"module\",\"target\",\"source_map\",\"excluding\") "+
+		"VALUES ($1,$2,$3,$4)")).
 		WithArgs("testModuleError", "testTarget", true, 1).
 		WillReturnError(expectedError)
-	m.ExpectQuery(formatRequest("SELECT * FROM \"tsconfigs\" WHERE \"tsconfigs\".\"module\" = $1")).
-		WithArgs("testModuleError").WillReturnError(expectedError)
 	_, returnedErr := mockRepo.SaveTsConfig(&tsConfigErr)
 	if assert.Error(t, returnedErr) {
 		assert.Equal(t, expectedError, returnedErr)
@@ -260,14 +263,11 @@ func TestPostgresStorage_SaveTempConfig(t *testing.T) {
 
 	tempConfig := entity.Tempconfig{RestApiRoot: "testApiRoot", Host: "testHost", Port: "testPort",
 		Remoting: "testRemoting", LegasyExplorer: true}
-	rows := sqlmock.NewRows([]string{"testApiRoot", "testHost", "testPort", "testRemoting", "true"})
 
-	m.ExpectQuery(formatRequest("INSERT INTO \"tempconfigs\" (\"rest_api_root\",\"host\",\"port\",\"remoting\",\"legasy_explorer\") "+
-		"VALUES ($1,$2,$3,$4,$5) RETURNING \"tempconfigs\".\"rest_api_root\"")).
+	m.ExpectExec(formatRequest("INSERT INTO \"tempconfigs\" (\"rest_api_root\",\"host\",\"port\",\"remoting\",\"legasy_explorer\") "+
+		"VALUES ($1,$2,$3,$4,$5)")).
 		WithArgs("testApiRoot", "testHost", "testPort", "testRemoting", true).
-		WillReturnRows(rows)
-	m.ExpectQuery(formatRequest("SELECT * FROM \"tempconfigs\" WHERE \"tempconfigs\".\"rest_api_root\" = $1")).
-		WithArgs("testApiRoot").WillReturnRows(rows)
+		WillReturnResult(sqlmock.NewResult(0, 1))
 	result, err := mockRepo.SaveTempConfig(&tempConfig)
 	if err != nil {
 		t.Error("error during unit testing: ", err)
@@ -282,12 +282,10 @@ func TestPostgresStorage_SaveTempConfigWithError(t *testing.T) {
 	tempConfigErr := entity.Tempconfig{RestApiRoot: "testApiRootError", Host: "testHost", Port: "testPort",
 		Remoting: "testRemoting", LegasyExplorer: true}
 	expectedError := errors.New("db error")
-	m.ExpectQuery(formatRequest("INSERT INTO \"tempconfigs\" (\"rest_api_root\",\"host\",\"port\",\"remoting\",\"legasy_explorer\") "+
-		"VALUES ($1,$2,$3,$4,$5) RETURNING \"tempconfigs\".\"rest_api_root\"")).
+	m.ExpectExec(formatRequest("INSERT INTO \"tempconfigs\" (\"rest_api_root\",\"host\",\"port\",\"remoting\",\"legasy_explorer\") "+
+		"VALUES ($1,$2,$3,$4,$5)")).
 		WithArgs("testApiRootError", "testHost", "testPort", "testRemoting", true).
 		WillReturnError(expectedError)
-	m.ExpectQuery(formatRequest("SELECT * FROM \"tempconfigs\" WHERE \"tempconfigs\".\"rest_api_root\" = $1")).
-		WithArgs("testApiRootError").WillReturnError(expectedError)
 	_, returnedErr := mockRepo.SaveTempConfig(&tempConfigErr)
 	if assert.Error(t, returnedErr) {
 		assert.Equal(t, expectedError, returnedErr)

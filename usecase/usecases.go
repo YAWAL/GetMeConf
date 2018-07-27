@@ -104,8 +104,8 @@ func (s *ConfigServerImpl) GetConfigsByType(confType string, stream pb.ConfigSer
 		if err != nil {
 			return err
 		}
-		for _, v := range res {
-			byteRes, err := json.Marshal(v)
+		for k := range res {
+			byteRes, err := json.Marshal(res[k])
 			if err != nil {
 				return err
 			}
@@ -118,8 +118,8 @@ func (s *ConfigServerImpl) GetConfigsByType(confType string, stream pb.ConfigSer
 		if err != nil {
 			return err
 		}
-		for _, v := range res {
-			byteRes, err := json.Marshal(v)
+		for k := range res {
+			byteRes, err := json.Marshal(res[k])
 			if err != nil {
 				return err
 			}
@@ -132,8 +132,8 @@ func (s *ConfigServerImpl) GetConfigsByType(confType string, stream pb.ConfigSer
 		if err != nil {
 			return err
 		}
-		for _, v := range res {
-			byteRes, err := json.Marshal(v)
+		for k := range res {
+			byteRes, err := json.Marshal(res[k])
 			if err != nil {
 				return err
 			}

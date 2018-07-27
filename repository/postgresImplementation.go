@@ -70,8 +70,8 @@ func (s *PostgresStorage) FindAllMongoDBConfig() ([]entity.Mongodb, error) {
 
 //SaveMongoDBConfig saves new config record to the database
 func (s *PostgresStorage) SaveMongoDBConfig(config *entity.Mongodb) (string, error) {
-	s.DB.LogMode(true)
-	err := s.DB.Create(config).Error
+	err := s.DB.Exec("INSERT INTO \"mongodbs\" (\"domain\",\"mongodb\",\"host\",\"port\") VALUES (?,?,?,?)",
+		config.Domain, config.Mongodb, config.Host, config.Port).Error
 	if err != nil {
 		return "", err
 	}
@@ -127,7 +127,8 @@ func (s *PostgresStorage) FindAllTempConfig() ([]entity.Tempconfig, error) {
 
 //SaveTempConfig saves new config record to the database.
 func (s *PostgresStorage) SaveTempConfig(config *entity.Tempconfig) (string, error) {
-	err := s.DB.Create(config).Error
+	err := s.DB.Exec("INSERT INTO \"tempconfigs\" (\"rest_api_root\",\"host\",\"port\",\"remoting\",\"legasy_explorer\") VALUES (?,?,?,?,?)",
+		config.RestApiRoot, config.Host, config.Port, config.Remoting, config.LegasyExplorer).Error
 	if err != nil {
 		return "", err
 	}
@@ -183,7 +184,8 @@ func (s *PostgresStorage) FindAllTsConfig() ([]entity.Tsconfig, error) {
 
 //SaveTsConfig saves new config record to the database.
 func (s *PostgresStorage) SaveTsConfig(config *entity.Tsconfig) (string, error) {
-	_, err := s.DB.Create(config).Rows()
+	err := s.DB.Exec("INSERT INTO \"tsconfigs\" (\"module\",\"target\",\"source_map\",\"excluding\") VALUES (?,?,?,?)",
+		config.Module, config.Target, config.SourceMap, config.Excluding).Error
 	if err != nil {
 		return "", err
 	}

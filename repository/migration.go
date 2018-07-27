@@ -59,9 +59,9 @@ func RollbackMigrations(db *gorm.DB) (err error) {
 	//	db.LogMode(c.Config.Debug())
 	var errs gorm.Errors
 
-	migrator := gormigrate.New(db, gormigrate.DefaultOptions, serviceMigrations)
+	migrate := gormigrate.New(db, gormigrate.DefaultOptions, serviceMigrations)
 	for _, migration := range serviceMigrations {
-		if err := migrator.RollbackLast(); err != nil {
+		if err := migrate.RollbackLast(); err != nil {
 			errs.Add(errors.Wrap(err, fmt.Sprintf("rollback migration error, ID %s", migration.ID)))
 		}
 	}
