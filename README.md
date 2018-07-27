@@ -48,4 +48,3 @@ To to run the application in a docker container
 ``````````````````
 make docker-build
 ``````````````````
-
